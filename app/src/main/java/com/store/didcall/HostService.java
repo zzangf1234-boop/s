@@ -39,6 +39,8 @@ public class HostService extends Service implements CallServer.Host {
 
     static final String K_TTS = "tts", K_SUB = "sub", K_REPEAT = "repeat";
     static final String K_SLIDE = "slide", K_FIT = "fit", K_POPUP = "popup", K_KEEP = "keep";
+    /** 키패드 배열: tenkey(. = 한 칸 지우기) / backspace(Backspace = 한 칸 지우기, . = 전체 삭제) */
+    static final String K_KEYPAD = "keypad";
     static final String DEF_TTS = "{n}번 고객님, 주문하신 메뉴가 준비되었습니다.";
     static final String DEF_SUB = "주문하신 메뉴가 준비되었습니다";
 
@@ -208,6 +210,7 @@ public class HostService extends Service implements CallServer.Host {
         o.put("fit", fit());
         o.put("keep", keepMinutes());
         o.put("voice", fileTtsReady);
+        o.put("keypad", prefs.getString(K_KEYPAD, "tenkey"));
     }
 
     @Override
@@ -223,6 +226,7 @@ public class HostService extends Service implements CallServer.Host {
         if (q.containsKey("popup")) e.putInt(K_POPUP, clampInt(q.get("popup"), popupSeconds(), 3, 60));
         if (q.containsKey("fit")) e.putString(K_FIT, "cover".equals(q.get("fit")) ? "cover" : "contain");
         if (q.containsKey("keep")) e.putInt(K_KEEP, clampInt(q.get("keep"), keepMinutes(), 0, 120));
+        if (q.containsKey("keypad")) e.putString(K_KEYPAD, "backspace".equals(q.get("keypad")) ? "backspace" : "tenkey");
         e.apply();
         store.setKeepMinutes(keepMinutes());
     }

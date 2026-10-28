@@ -188,8 +188,8 @@ public class CallerActivity extends Activity {
 
     /**
      * 화면의 버튼보다 먼저 키 입력을 받아 처리 (Enter가 포커스된 버튼을 누르는 것 방지).
-     *  (텐키 기준) 숫자 = 입력, Enter = 호출, . = 한 칸 지우기, - = 전체 지우기,
-     *  + = 다음 번호, * = 재호출, / = 화면 비우기
+     *  숫자 = 입력, Enter = 호출, + = 다음 번호, * = 재호출, / = 화면 비우기, - = 전체 삭제
+     *  텐키형: . = 한 칸 지우기  /  백스페이스형: Backspace = 한 칸 지우기, . = 전체 삭제
      */
     @Override
     public boolean dispatchKeyEvent(KeyEvent e) {
@@ -200,11 +200,12 @@ public class CallerActivity extends Activity {
         boolean repeat = e.getRepeatCount() > 0;
         if (!keyboardHintShown) {
             keyboardHintShown = true;
-            msg("⌨ 텐키: Enter 호출 · + 다음 번호 · * 재호출 · / 화면 비우기 · . 한 칸 지우기 · - 전체 삭제");
+            msg(keypadHint());
         }
         switch (action) {
             case "call": if (!repeat) sendCall(); break;
             case "back": key("←"); break;
+            case "dot": key(backspaceLayout() ? "C" : "←"); break;
             case "clear": key("C"); break;
             case "next": if (!repeat) { input = String.valueOf(lastSent + 1); showInput(); } break;
             case "recall": if (!repeat) request("/recall", "재호출했습니다"); break;
@@ -233,7 +234,8 @@ public class CallerActivity extends Activity {
             case 74: return "clear";   // -
             case 98: return "blank";   // /
             case 83:                   // .
-            case 121: return "back";   // , (일부 텐키)
+            case 121: return "dot";    // , (일부 텐키)
+            case 14: return "back";    // Backspace
             default: break;
         }
         if (code >= KeyEvent.KEYCODE_0 && code <= KeyEvent.KEYCODE_9) return String.valueOf(code - KeyEvent.KEYCODE_0);
@@ -242,12 +244,13 @@ public class CallerActivity extends Activity {
             case KeyEvent.KEYCODE_ENTER:
             case KeyEvent.KEYCODE_NUMPAD_ENTER:
                 return "call";
-            case KeyEvent.KEYCODE_NUMPAD_DOT:     // 텐키 . = 한 칸 지우기
+            case KeyEvent.KEYCODE_NUMPAD_DOT:     // . (텐키형: 한 칸 / 백스페이스형: 전체 삭제)
             case KeyEvent.KEYCODE_PERIOD:
             case KeyEvent.KEYCODE_NUMPAD_COMMA:   // 일부 텐키는 . 자리에 , 가 있음
             case KeyEvent.KEYCODE_COMMA:
             case KeyEvent.KEYCODE_FORWARD_DEL:    // NumLock 꺼진 상태의 . 키
-            case KeyEvent.KEYCODE_DEL:            // 일반 키보드 Backspace
+                return "dot";
+            case KeyEvent.KEYCODE_DEL:            // Backspace = 항상 한 칸 지우기
                 return "back";
             case KeyEvent.KEYCODE_NUMPAD_SUBTRACT: // 텐키 - = 전체 삭제
             case KeyEvent.KEYCODE_ESCAPE:
@@ -268,6 +271,29 @@ public class CallerActivity extends Activity {
             default:
                 return null;
         }
+    }
+
+    private boolean backspaceLayout() {
+        return "backspace".equals(prefs.getString(HostService.K_KEYPAD, "tenkey"));
+    }
+
+    private String keypadHint() {
+        return backspaceLayout()
+                ? "⌨ 백스페이스형: Enter 호출 · + 다음 · * 재호출 · / 화면 비우기 · ← 한 칸 · - . 전체 삭제"
+                : "⌨ 텐키형: Enter 호출 · + 다음 · * 재호출 · / 화면 비우기 · . 한 칸 · - 전체 삭제";
+    }
+
+    private void chooseKeypad() {
+        String[] items = {"텐키형 (백스페이스 없음)\n. = 한 칸 지우기 · - = 전체 삭제",
+                "백스페이스형\n← = 한 칸 지우기 · . 과 - = 전체 삭제"};
+        new AlertDialog.Builder(this, android.R.style.Theme_Material_Dialog_Alert)
+                .setTitle("키패드 종류")
+                .setSingleChoiceItems(items, backspaceLayout() ? 1 : 0, (d, which) -> {
+                    prefs.edit().putString(HostService.K_KEYPAD, which == 1 ? "backspace" : "tenkey").apply();
+                    msg(keypadHint());
+                    d.dismiss();
+                })
+                .show();
     }
 
     private void tap(View v) {
@@ -535,7 +561,7 @@ public class CallerActivity extends Activity {
     private void showMenu() {
         new AlertDialog.Builder(this, android.R.style.Theme_Material_Dialog_Alert)
                 .setItems(new String[]{"TV 이미지 추가 (갤러리)", "이미지 관리 · 안내 설정 (브라우저)", "TV·PC 화면 연결 방법",
-                                "번호 초기화 (다음 번호 = 1)", "꺼짐 방지 (배터리 최적화 제외)", "역할 다시 선택", "호출 서버 끄고 종료"},
+                                "번호 초기화 (다음 번호 = 1)", "키패드 종류 (텐키형 / 백스페이스형)", "꺼짐 방지 (배터리 최적화 제외)", "역할 다시 선택", "호출 서버 끄고 종료"},
                         (d, which) -> {
                             if (which == 0) {
                                 pickImages();
@@ -549,8 +575,10 @@ public class CallerActivity extends Activity {
                                 prefs.edit().putInt(K_LAST, 0).apply();
                                 msg("번호를 초기화했습니다");
                             } else if (which == 4) {
-                                askBatteryExemption();
+                                chooseKeypad();
                             } else if (which == 5) {
+                                askBatteryExemption();
+                            } else if (which == 6) {
                                 HostService.stop(this);
                                 prefs.edit().remove(MainActivity.KEY_MODE).apply();
                                 startActivity(new Intent(this, MainActivity.class).putExtra(MainActivity.EXTRA_CHOOSE, true));
