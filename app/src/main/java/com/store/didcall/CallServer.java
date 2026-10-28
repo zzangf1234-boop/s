@@ -36,6 +36,8 @@ import java.util.concurrent.Executors;
  *  GET  /image/delete?name=  이미지 1장 삭제
  *  GET  /image/clear         이미지 모두 삭제
  *  GET  /                    휴대폰 브라우저용 호출 페이지
+ *  GET  /display             PC 브라우저용 호출 화면 (TV 화면과 동일)
+ *  GET  /display.bat         윈도우 전체화면 실행 파일
  */
 final class CallServer {
 
@@ -132,9 +134,11 @@ final class CallServer {
             if (line == null) return;
 
             int contentLength = 0;
+            String hostHeader = null;
             String h;
             while ((h = readLine(in)) != null && !h.isEmpty()) {
                 int c = h.indexOf(':');
+                if (c > 0 && h.substring(0, c).trim().equalsIgnoreCase("host")) hostHeader = h.substring(c + 1).trim();
                 if (c > 0 && h.substring(0, c).trim().equalsIgnoreCase("content-length")) {
                     try { contentLength = Integer.parseInt(h.substring(c + 1).trim()); } catch (Exception ignored) {}
                 }
@@ -185,6 +189,12 @@ final class CallServer {
                 case "/index.html":
                     send(out, 200, "text/html; charset=utf-8", WebPage.HTML);
                     break;
+                case "/display":
+                    send(out, 200, "text/html; charset=utf-8", DisplayPage.HTML);
+                    break;
+                case "/display.bat":
+                    sendBat(out, hostHeader);
+                    break;
                 case "/ping":
                     send(out, 200, "text/plain; charset=utf-8", "DIDCALL OK");
                     break;
@@ -204,7 +214,10 @@ final class CallServer {
                     break;
                 }
                 case "/recall":
-                    if (!host.store().current().isEmpty()) host.onChanged("recall");
+                    if (!host.store().current().isEmpty()) {
+                        host.store().recall();
+                        host.onChanged("recall");
+                    }
                     send(out, 200, JSON, status(true, null));
                     break;
                 case "/clear":
@@ -256,6 +269,7 @@ final class CallServer {
             for (String n : host.store().history()) hist.put(n);
             o.put("history", hist);
             o.put("images", host.images().count());
+            o.put("seq", host.store().seq());
             host.putConfig(o);
             return o.toString();
         } catch (Exception e) {
@@ -303,6 +317,32 @@ final class CallServer {
                 + "Content-Type: " + type + "\r\n"
                 + "Content-Length: " + b.length + "\r\n"
                 + "Access-Control-Allow-Origin: *\r\n"
+                + "Cache-Control: no-store\r\n"
+                + "Connection: close\r\n\r\n";
+        out.write(head.getBytes(UTF8));
+        out.write(b);
+        out.flush();
+    }
+
+    /** 윈도우에서 더블클릭하면 엣지 전체화면으로 호출 화면을 여는 실행 파일 (이 기기의 주소가 들어감) */
+    private static void sendBat(OutputStream out, String hostHeader) throws IOException {
+        // 브라우저가 접속한 주소를 그대로 사용 (가장 확실하게 연결되는 주소)
+        String host = hostHeader != null && hostHeader.matches("[0-9A-Za-z.\\-]+(:[0-9]{1,5})?")
+                ? hostHeader : Net.localIp() + ":" + Net.HTTP_PORT;
+        String url = "http://" + host + "/display";
+        String bat = "@echo off\r\n"
+                + "rem DID number call - browser display\r\n"
+                + "rem Put a shortcut of this file in shell:startup to open it when Windows starts.\r\n"
+                + "set URL=" + url + "\r\n"
+                + "set PROFILE=%LOCALAPPDATA%\\DIDCallDisplay\r\n"
+                + "start \"\" msedge --kiosk \"%URL%\" --edge-kiosk-type=fullscreen"
+                + " --autoplay-policy=no-user-gesture-required --no-first-run"
+                + " --user-data-dir=\"%PROFILE%\"\r\n";
+        byte[] b = bat.getBytes(UTF8);
+        String head = "HTTP/1.1 200 OK\r\n"
+                + "Content-Type: application/octet-stream\r\n"
+                + "Content-Disposition: attachment; filename=\"DID-Display.bat\"\r\n"
+                + "Content-Length: " + b.length + "\r\n"
                 + "Cache-Control: no-store\r\n"
                 + "Connection: close\r\n\r\n";
         out.write(head.getBytes(UTF8));

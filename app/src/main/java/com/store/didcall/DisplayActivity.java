@@ -46,7 +46,7 @@ import java.util.concurrent.Executors;
 public class DisplayActivity extends Activity implements CallServer.Host {
 
     private static final String K_TTS = "tts", K_SUB = "sub", K_REPEAT = "repeat";
-    private static final String K_SLIDE = "slide", K_FIT = "fit", K_POPUP = "popup";
+    private static final String K_SLIDE = "slide", K_FIT = "fit", K_POPUP = "popup", K_KEEP = "keep";
     private static final String DEF_TTS = "{n}번 고객님, 주문하신 메뉴가 준비되었습니다.";
     private static final String DEF_SUB = "주문하신 메뉴가 준비되었습니다";
 
@@ -86,6 +86,12 @@ public class DisplayActivity extends Activity implements CallServer.Host {
     private final Runnable hideRunnable = this::hidePopup;
     private final Runnable flashRunnable = this::flashStep;
     private final Runnable speakRunnable = this::speak;
+    private final Runnable tickRunnable = new Runnable() {
+        @Override public void run() {
+            render(); // 5분 지난 최근 호출을 화면에서 지움
+            ui.postDelayed(this, 10_000);
+        }
+    };
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -120,11 +126,13 @@ public class DisplayActivity extends Activity implements CallServer.Host {
         } catch (Exception ignored) {
         }
 
+        store.setKeepMinutes(keepMinutes());
         server = new CallServer(this);
         server.start();
         render();
         refreshAddress();
         imageFrame.post(this::reloadImages); // 크기가 정해진 뒤에 이미지 로드
+        ui.postDelayed(tickRunnable, 10_000);
     }
 
     @Override
@@ -275,7 +283,8 @@ public class DisplayActivity extends Activity implements CallServer.Host {
     private void refreshAddress() {
         String ip = Net.localIp();
         addrView.setText("호출기 연결 주소  " + ip + ":" + Net.HTTP_PORT
-                + "     ·     휴대폰 브라우저 (호출·이미지 관리)  http://" + ip + ":" + Net.HTTP_PORT);
+                + "   ·   휴대폰 브라우저 (호출·이미지)  http://" + ip + ":" + Net.HTTP_PORT
+                + "   ·   PC 브라우저 화면  http://" + ip + ":" + Net.HTTP_PORT + "/display");
     }
 
     private void render() {
@@ -485,6 +494,7 @@ public class DisplayActivity extends Activity implements CallServer.Host {
     private int slideSeconds() { return prefs.getInt(K_SLIDE, 8); }
     private int popupSeconds() { return prefs.getInt(K_POPUP, 10); }
     private String fit() { return prefs.getString(K_FIT, "contain"); }
+    private int keepMinutes() { return prefs.getInt(K_KEEP, 5); }
 
     private static int clampInt(String v, int def, int min, int max) {
         try { return Math.max(min, Math.min(max, Integer.parseInt(v.trim()))); }
@@ -503,6 +513,7 @@ public class DisplayActivity extends Activity implements CallServer.Host {
         o.put("slide", slideSeconds());
         o.put("popup", popupSeconds());
         o.put("fit", fit());
+        o.put("keep", keepMinutes());
     }
 
     @Override
@@ -517,7 +528,9 @@ public class DisplayActivity extends Activity implements CallServer.Host {
         if (q.containsKey("slide")) e.putInt(K_SLIDE, clampInt(q.get("slide"), slideSeconds(), 3, 300));
         if (q.containsKey("popup")) e.putInt(K_POPUP, clampInt(q.get("popup"), popupSeconds(), 3, 60));
         if (q.containsKey("fit")) e.putString(K_FIT, "cover".equals(q.get("fit")) ? "cover" : "contain");
+        if (q.containsKey("keep")) e.putInt(K_KEEP, clampInt(q.get("keep"), keepMinutes(), 0, 120));
         e.apply();
+        store.setKeepMinutes(keepMinutes());
     }
 
     @Override
@@ -537,6 +550,7 @@ public class DisplayActivity extends Activity implements CallServer.Host {
                     reloadImages();
                     break;
                 case "config":
+                    render();
                     applyScaleType();
                     if (slides.size() > 1) {
                         ui.removeCallbacks(slideRunnable);
@@ -553,7 +567,10 @@ public class DisplayActivity extends Activity implements CallServer.Host {
     @Override
     public boolean onKeyDown(int keyCode, KeyEvent event) {
         if (keyCode == KeyEvent.KEYCODE_DPAD_CENTER || keyCode == KeyEvent.KEYCODE_ENTER) {
-            if (!store.current().isEmpty()) announce(store.current()); // 리모컨 확인 버튼 = 재호출
+            if (!store.current().isEmpty()) { // 리모컨 확인 버튼 = 재호출
+                store.recall();
+                announce(store.current());
+            }
             return true;
         }
         if (keyCode == KeyEvent.KEYCODE_DPAD_RIGHT && !slides.isEmpty()) { nextSlide(); return true; }
