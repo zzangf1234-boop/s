@@ -82,6 +82,11 @@ final class Receipt {
      * 명령 뒤에 붙는 숫자 인자·그림 데이터는 건너뜀.
      */
     static byte[] strip(byte[] b) {
+        return strip(b, null);
+    }
+
+    /** notes 가 있으면 그림·바코드 명령을 찾을 때마다 기록 (진단용) */
+    static byte[] strip(byte[] b, StringBuilder notes) {
         ByteArrayOutputStream out = new ByteArrayOutputStream(b.length);
         int i = 0, n = b.length;
         while (i < n) {
@@ -96,6 +101,7 @@ final class Receipt {
                         if (i + 2 < n) {
                             int mode = b[i] & 0xFF, len = (b[i + 1] & 0xFF) + (b[i + 2] & 0xFF) * 256;
                             i += 3 + len * (mode >= 32 ? 3 : 1);
+                            note(notes, "ESC * 비트 그림 (가로 " + len + "점)");
                         }
                         break;
                     }
@@ -119,6 +125,7 @@ final class Receipt {
                     case 'k': {                        // 바코드
                         int m = i < n ? b[i] & 0xFF : 0;
                         i++;
+                        note(notes, "바코드");
                         if (m <= 6) { while (i < n && b[i] != 0) i++; i++; }
                         else if (i < n) { i += 1 + (b[i] & 0xFF); }
                         break;
@@ -128,12 +135,14 @@ final class Receipt {
                             int xw = (b[i + 2] & 0xFF) + (b[i + 3] & 0xFF) * 256;
                             int yh = (b[i + 4] & 0xFF) + (b[i + 5] & 0xFF) * 256;
                             i += 6 + xw * yh;
+                            note(notes, "GS v 0 래스터 그림 " + (xw * 8) + "×" + yh + "점");
                         } else i = n;
                         break;
                     }
                     case '(': case '8': {              // GS ( fn pL pH ... (QR 등)
                         if (i + 2 < n) {
                             int len = (b[i + 1] & 0xFF) + (b[i + 2] & 0xFF) * 256;
+                            note(notes, "GS " + (char) cmd + " " + (char) (b[i] & 0xFF) + " 블록 " + len + "바이트 (그림·QR 등)");
                             i += 3 + len;
                         } else i = n;
                         break;
@@ -148,7 +157,8 @@ final class Receipt {
                 i += 2;
                 switch (cmd) {
                     case '&': case '.': break;
-                    case 'S': case 'p': i += 2; break;
+                    case 'S': i += 2; break;
+                    case 'p': note(notes, "FS p 저장 그림 출력"); i += 2; break;
                     case '(': if (i + 2 < n) i += 3 + (b[i + 1] & 0xFF) + (b[i + 2] & 0xFF) * 256; else i = n; break;
                     default: i += 1;
                 }
@@ -167,5 +177,27 @@ final class Receipt {
             i++;
         }
         return out.toByteArray();
+    }
+
+    private static void note(StringBuilder notes, String s) {
+        if (notes != null && notes.length() < 2000) notes.append("· ").append(s).append('\n');
+    }
+
+    /** 진단: 해석한 글자 + 그림 명령 목록 + 앞부분 16진수 */
+    static String diagnose(byte[] raw, String label) {
+        StringBuilder notes = new StringBuilder();
+        String text = new String(strip(raw, notes), CP949);
+        Receipt r = parse(raw, label);
+        StringBuilder o = new StringBuilder();
+        o.append("크기 ").append(raw.length).append("바이트 · 주문번호 ").append(r.number == null ? "못 찾음" : r.number)
+                .append(r.reprint ? " · 재발행" : "").append("\n\n[찾은 그림·명령]\n")
+                .append(notes.length() == 0 ? "없음\n" : notes.toString())
+                .append("\n[읽은 글자]\n").append(text.trim()).append("\n\n[원본 앞부분 16진수]\n");
+        int n = Math.min(raw.length, 1536);
+        for (int i = 0; i < n; i++) {
+            o.append(String.format(java.util.Locale.US, "%02X", raw[i] & 0xFF)).append(i % 16 == 15 ? '\n' : ' ');
+        }
+        if (raw.length > n) o.append("\n… (나머지 ").append(raw.length - n).append("바이트 생략)");
+        return o.toString();
     }
 }

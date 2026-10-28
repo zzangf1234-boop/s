@@ -69,6 +69,10 @@ final class CallServer {
         JSONObject voices() throws Exception;
         /** 영업 마감 표시 수동 켜기/끄기 */
         void setClosed(boolean closed);
+        /** 받은 주문서 원본 파일 (진단용), 없으면 null */
+        File receiptFile(String id);
+        /** 주문서 진단 글 (해석한 글자·그림 명령·16진수) */
+        String receiptDiagnose(File f) throws IOException;
         /** event: call | recall | clear | config | media | closing | auth | waiting — 서버 스레드에서 호출됨 */
         void onChanged(String event);
     }
@@ -373,6 +377,31 @@ final class CallServer {
                     host.onChanged("waiting");
                     send(out, 200, JSON, status(true, null, authed, local));
                     break;
+                case "/kiosk/raw":
+                case "/kiosk/text": {
+                    if (!authed) { deny(out); break; }
+                    File f = host.receiptFile(q.get("id"));
+                    if (f == null) { send(out, 404, TEXT, "주문서 기록이 없습니다 (앱을 다시 켜면 지워질 수 있음)"); break; }
+                    if ("/kiosk/raw".equals(path)) {
+                        byte[] b = readFile(f);
+                        String head = "HTTP/1.1 200 OK\r\nContent-Type: application/octet-stream\r\n"
+                                + "Content-Disposition: attachment; filename=\"receipt-" + f.getName() + "\"\r\n"
+                                + "Content-Length: " + b.length + "\r\nCache-Control: no-store\r\nConnection: close\r\n\r\n";
+                        out.write(head.getBytes(UTF8));
+                        out.write(b);
+                        out.flush();
+                    } else {
+                        String d = host.receiptDiagnose(f).replace("&", "&amp;").replace("<", "&lt;");
+                        String tok = q.get("t") == null ? "" : "&t=" + java.net.URLEncoder.encode(q.get("t"), "UTF-8");
+                        String html = "<!doctype html><meta charset=utf-8><meta name=viewport content='width=device-width'><title>주문서 " + f.getName()
+                                + "</title><body style='background:#111;color:#eee;font-family:sans-serif;padding:12px'>"
+                                + "<a style='display:block;background:#ff8a00;color:#fff;padding:12px;border-radius:10px;text-align:center;text-decoration:none;font-weight:700' href='/kiosk/raw?id="
+                                + f.getName().replace(".bin", "") + tok + "'>⬇ 원본 파일 받기 (.bin)</a>"
+                                + "<pre style='white-space:pre-wrap;word-break:break-all;font-size:13px'>" + d + "</pre>";
+                        send(out, 200, "text/html; charset=utf-8", html.getBytes(UTF8));
+                    }
+                    break;
+                }
                 case "/closing":
                     if (!authed) { deny(out); break; }
                     host.setClosed("1".equals(q.get("on")));

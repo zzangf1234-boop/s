@@ -953,7 +953,8 @@ public class CallerActivity extends Activity implements VoiceRecorder.Host {
         label.setSingleLine(true);
         box.addView(label);
 
-        StringBuilder log = new StringBuilder("\n최근 받은 주문서\n");
+        box.addView(Ui.text(this, "\n최근 받은 주문서", 13, Ui.TEXT, true));
+        StringBuilder log = new StringBuilder();
         JSONArray arr = last.optJSONArray("kioskLog");
         if (arr == null || arr.length() == 0) {
             log.append("아직 없음");
@@ -969,11 +970,21 @@ public class CallerActivity extends Activity implements VoiceRecorder.Host {
                 if (!j.optString("items").isEmpty()) log.append(" · ").append(j.optString("items"));
                 String r = j.optString("relay");
                 if (!r.isEmpty()) log.append("ok".equals(r) ? " · 주방 전달됨" : " · ⚠ " + r);
-                log.append('\n');
+                final String id = j.optString("id");
+                // 한 줄씩: 누르면 주문서 내용(해석한 글자·원본) 보기
+                TextView line = Ui.text(this, log.toString() + (id.isEmpty() ? "" : "  🔍"), 13, Ui.TEXT, false);
+                line.setPadding(0, Ui.dp(this, 6), 0, Ui.dp(this, 6));
+                log.setLength(0);
+                box.addView(line);
+                if (!id.isEmpty()) line.setOnClickListener(v -> {
+                    try { startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse(BASE + "/kiosk/text?id=" + id))); }
+                    catch (Exception e) { msg("브라우저를 열 수 없습니다"); }
+                });
             }
         }
-        TextView lv = Ui.text(this, log.toString(), 13, Ui.TEXT, false);
-        box.addView(lv);
+        if (log.length() > 0) box.addView(Ui.text(this, log.toString(), 13, Ui.TEXT, false));
+        if (arr != null && arr.length() > 0)
+            box.addView(Ui.text(this, "🔍 줄을 누르면 그 주문서 내용과 원본 파일을 볼 수 있습니다", 12, Ui.MUTED, false));
 
         android.widget.ScrollView sv = new android.widget.ScrollView(this);
         sv.addView(box);

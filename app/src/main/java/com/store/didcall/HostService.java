@@ -448,6 +448,8 @@ public class HostService extends Service implements CallServer.Host {
             j.put("items", r.summary());
             j.put("from", from);
             j.put("bytes", raw.length);
+            String id = saveReceipt(raw);
+            if (id != null) j.put("id", id);
             if (relayResult != null) j.put("relay", relayResult);
             synchronized (kioskLog) {
                 kioskLog.addFirst(j);
@@ -455,6 +457,51 @@ public class HostService extends Service implements CallServer.Host {
             }
         } catch (Exception ignored) {
         }
+    }
+
+    /** 받은 주문서 원본을 최근 30장까지 보관 (진단용: 앱·브라우저에서 내용 보기·원본 받기) */
+    private File receiptDir() {
+        File d = new File(getFilesDir(), "receipts");
+        //noinspection ResultOfMethodCallIgnored
+        d.mkdirs();
+        return d;
+    }
+
+    private String saveReceipt(byte[] raw) {
+        try {
+            if (raw.length > 2 * 1024 * 1024) return null;
+            File d = receiptDir();
+            long id = System.currentTimeMillis();
+            File f;
+            while ((f = new File(d, id + ".bin")).exists()) id++;
+            try (java.io.FileOutputStream o = new java.io.FileOutputStream(f)) { o.write(raw); }
+            File[] all = d.listFiles((x, n) -> n.endsWith(".bin"));
+            if (all != null && all.length > 30) {
+                java.util.Arrays.sort(all, (a, b) -> a.getName().compareTo(b.getName()));
+                for (int i = 0; i < all.length - 30; i++) //noinspection ResultOfMethodCallIgnored
+                    all[i].delete();
+            }
+            return String.valueOf(id);
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
+    @Override
+    public File receiptFile(String id) {
+        if (id == null || !id.matches("[0-9]{1,20}")) return null;
+        File f = new File(receiptDir(), id + ".bin");
+        return f.isFile() ? f : null;
+    }
+
+    @Override
+    public String receiptDiagnose(File f) throws java.io.IOException {
+        byte[] b = new byte[(int) f.length()];
+        try (java.io.FileInputStream in = new java.io.FileInputStream(f)) {
+            int off = 0, r;
+            while (off < b.length && (r = in.read(b, off, b.length - off)) > 0) off += r;
+        }
+        return Receipt.diagnose(b, prefs.getString(K_ORDER_LABEL, "주문번호"));
     }
 
     // ───────────────────────── 영업 마감 ─────────────────────────
