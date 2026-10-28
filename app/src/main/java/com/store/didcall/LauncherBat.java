@@ -4,7 +4,7 @@ package com.store.didcall;
 final class LauncherBat {
     private LauncherBat() {}
 
-    static final String HTML =
+    private static final String P0 =
         "@echo off\r\n" +
         "rem ============================================================\r\n" +
         "rem  DID number call - Windows display launcher\r\n" +
@@ -55,4 +55,6 @@ final class LauncherBat {
         "  }\r\n" +
         "}\r\n" +
         "$listener.Stop()\r\n";
+
+    static final String HTML = new StringBuilder(2672).append(P0).toString();
 }

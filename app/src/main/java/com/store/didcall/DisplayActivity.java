@@ -27,7 +27,15 @@ import android.widget.FrameLayout;
 import android.widget.LinearLayout;
 import android.widget.TextView;
 
+import android.os.Build;
+import android.widget.Toast;
+
+import org.json.JSONObject;
+
+import java.io.ByteArrayOutputStream;
+import java.io.InputStream;
 import java.net.HttpURLConnection;
+import java.net.URLEncoder;
 import java.net.URL;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -274,21 +282,14 @@ public class DisplayActivity extends Activity {
     }
 
     // ───────────────────────── 리모컨 ─────────────────────────
+    private static final String K_TOKEN = "tv_token";
+    private boolean approving;
+
     @Override
     public boolean onKeyDown(int keyCode, KeyEvent event) {
         boolean showing = searchPane.getVisibility() != View.VISIBLE;
         if (showing && (keyCode == KeyEvent.KEYCODE_DPAD_CENTER || keyCode == KeyEvent.KEYCODE_ENTER)) {
-            final String h = host; // 리모컨 확인 버튼 = 재호출
-            bg.execute(() -> {
-                try {
-                    HttpURLConnection c = (HttpURLConnection) new URL("http://" + h + "/recall").openConnection();
-                    c.setConnectTimeout(2000);
-                    c.setReadTimeout(2000);
-                    c.getResponseCode();
-                    c.disconnect();
-                } catch (Exception ignored) {
-                }
-            });
+            if (event.getRepeatCount() == 0) recallFromRemote(); // 리모컨 확인 버튼 = 재호출
             return true;
         }
         if (showing && keyCode == KeyEvent.KEYCODE_DPAD_RIGHT) {
@@ -298,23 +299,137 @@ public class DisplayActivity extends Activity {
         return super.onKeyDown(keyCode, event);
     }
 
+    /** 재호출은 승인된 기기만 가능 → 처음 한 번 호출기에서 [허용] 받기 */
+    private void recallFromRemote() {
+        final String h = host;
+        final String token = prefs.getString(K_TOKEN, "");
+        bg.execute(() -> {
+            int code = token.isEmpty() ? 403 : httpCode("http://" + h + "/recall?t=" + token);
+            if (code != 403) return;
+            prefs.edit().remove(K_TOKEN).apply();
+            requestApproval(h);
+        });
+    }
+
+    private void requestApproval(String h) {
+        if (approving) return;
+        approving = true;
+        ui.post(() -> Toast.makeText(this, "리모컨으로 재호출하려면 호출기 폰에서 [허용]을 눌러 주세요", Toast.LENGTH_LONG).show());
+        try {
+            String name = URLEncoder.encode("TV 화면 리모컨 (" + Build.MODEL + ")", "UTF-8");
+            JSONObject r = new JSONObject(httpGet("http://" + h + "/auth/request?name=" + name));
+            String id = r.getString("id");
+            for (int i = 0; i < 90; i++) { // 최대 3분 기다림
+                Thread.sleep(2000);
+                JSONObject c = new JSONObject(httpGet("http://" + h + "/auth/check?id=" + id));
+                String st = c.optString("state");
+                if ("ok".equals(st)) {
+                    prefs.edit().putString(K_TOKEN, c.getString("token")).apply();
+                    ui.post(() -> Toast.makeText(this, "허용되었습니다. 이제 확인 버튼으로 재호출할 수 있습니다", Toast.LENGTH_LONG).show());
+                    httpCode("http://" + h + "/recall?t=" + c.getString("token"));
+                    break;
+                }
+                if (!"pending".equals(st)) {
+                    ui.post(() -> Toast.makeText(this, "호출기에서 허용되지 않았습니다", Toast.LENGTH_SHORT).show());
+                    break;
+                }
+            }
+        } catch (Exception ignored) {
+        } finally {
+            approving = false;
+        }
+    }
+
+    private static int httpCode(String url) {
+        try {
+            HttpURLConnection c = (HttpURLConnection) new URL(url).openConnection();
+            c.setConnectTimeout(2500);
+            c.setReadTimeout(2500);
+            int code = c.getResponseCode();
+            c.disconnect();
+            return code;
+        } catch (Exception e) {
+            return -1;
+        }
+    }
+
+    private static String httpGet(String url) throws Exception {
+        HttpURLConnection c = (HttpURLConnection) new URL(url).openConnection();
+        c.setConnectTimeout(3000);
+        c.setReadTimeout(3000);
+        try {
+            InputStream in = c.getInputStream();
+            ByteArrayOutputStream bo = new ByteArrayOutputStream();
+            byte[] b = new byte[2048];
+            int r;
+            while ((r = in.read(b)) > 0) bo.write(b, 0, r);
+            return bo.toString("UTF-8");
+        } finally {
+            c.disconnect();
+        }
+    }
+
+    // ───────────────────────── 화면 방향 · 화면 정보 ─────────────────────────
+    private void chooseRotation() {
+        // 화면 내용을 시계 방향으로 90° 돌리면(90) TV를 왼쪽(반시계)으로 돌려 단 경우에 바로 보임
+        String[] items = {"가로 (기본)", "세로 — TV를 왼쪽으로 돌려 단 경우", "세로 — TV를 오른쪽으로 돌려 단 경우"};
+        final int[] values = {0, 90, 270};
+        new AlertDialog.Builder(this, android.R.style.Theme_Material_Dialog_Alert)
+                .setTitle("화면 방향")
+                .setItems(items, (d, which) -> {
+                    web.evaluateJavascript("setRot(" + values[which] + ")", null);
+                    ui.postDelayed(this::unlockAudio, 2500);
+                })
+                .show();
+    }
+
+    @SuppressWarnings("deprecation")
+    private void showScreenInfo() {
+        android.util.DisplayMetrics dm = new android.util.DisplayMetrics();
+        getWindowManager().getDefaultDisplay().getRealMetrics(dm);
+        StringBuilder b = new StringBuilder();
+        b.append("앱이 그리는 해상도: ").append(dm.widthPixels).append(" × ").append(dm.heightPixels)
+                .append("\n화면 밀도: ").append(dm.densityDpi).append(" dpi");
+        if (Build.VERSION.SDK_INT >= 23) {
+            android.view.Display.Mode m = getWindowManager().getDefaultDisplay().getMode();
+            b.append("\nTV로 내보내는 해상도: ").append(m.getPhysicalWidth()).append(" × ").append(m.getPhysicalHeight())
+                    .append(" (").append(Math.round(m.getRefreshRate())).append("Hz)");
+        }
+        if (Math.max(dm.widthPixels, dm.heightPixels) < 1600) {
+            b.append("\n\n⚠ 이 기기는 720p 이하로 화면을 그립니다. TV에서 흐려 보일 수 있습니다.")
+                    .append("\n기기 설정 → 디스플레이에서 해상도를 1080p 이상으로 바꿀 수 있는지 확인하세요.");
+        }
+        b.append("\n\n기기: ").append(Build.MANUFACTURER).append(' ').append(Build.MODEL)
+                .append("\n안드로이드: ").append(Build.VERSION.RELEASE)
+                .append("\n호출기: ").append(host.isEmpty() ? "연결 안 됨" : host);
+        new AlertDialog.Builder(this, android.R.style.Theme_Material_Dialog_Alert)
+                .setTitle("화면 정보")
+                .setMessage(b.toString())
+                .setPositiveButton("확인", null)
+                .show();
+    }
+
     @Override
     public void onBackPressed() {
         // 실수로 꺼지는 것을 막기 위해 확인 창 표시
         new AlertDialog.Builder(this, android.R.style.Theme_Material_Dialog_Alert)
                 .setTitle("DID 호출 화면")
-                .setItems(new String[]{"계속 표시", "호출기 다시 찾기", "호출기 주소 직접 입력", "역할 다시 선택", "앱 종료"}, (d, which) -> {
+                .setItems(new String[]{"계속 표시", "화면 방향 (세로 거치)", "화면 정보", "호출기 다시 찾기", "호출기 주소 직접 입력", "역할 다시 선택", "앱 종료"}, (d, which) -> {
                     if (which == 1) {
+                        chooseRotation();
+                    } else if (which == 2) {
+                        showScreenInfo();
+                    } else if (which == 3) {
                         web.setVisibility(View.INVISIBLE);
                         startSearch();
-                    } else if (which == 2) {
+                    } else if (which == 4) {
                         searchPane.setVisibility(View.VISIBLE);
                         showManualDialog();
-                    } else if (which == 3) {
+                    } else if (which == 5) {
                         prefs.edit().remove(MainActivity.KEY_MODE).apply();
                         startActivity(new Intent(this, MainActivity.class).putExtra(MainActivity.EXTRA_CHOOSE, true));
                         finish();
-                    } else if (which == 4) {
+                    } else if (which == 6) {
                         finish();
                     }
                 })

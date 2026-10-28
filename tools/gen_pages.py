@@ -10,15 +10,26 @@ for src, cls, doc, eol in pages:
     lines = [l for l in html.split("\n") if keep_blank or l != ""]
     if keep_blank and lines and lines[-1] == "": lines.pop()
     if src.endswith(".bat"): assert all(ord(ch) < 128 for ch in html), "bat must be ASCII"
-    body = " +\n        ".join(json.dumps(l + eol, ensure_ascii=False) for l in lines)
+    # 자바 문자열 상수는 64KB 제한이 있어 약 12,000자씩 나눠 담고 실행 시 이어 붙임
+    chunks, cur, size = [], [], 0
+    for l in lines:
+        if cur and size + len(l) > 12000:
+            chunks.append(cur); cur, size = [], 0
+        cur.append(l); size += len(l) + 1
+    if cur: chunks.append(cur)
+    parts = []
+    for i, ch in enumerate(chunks):
+        body = " +\n        ".join(json.dumps(l + eol, ensure_ascii=False) for l in ch)
+        parts.append(f"    private static final String P{i} =\n        {body};\n")
+    joined = " + ".join(f"P{i}" for i in range(len(chunks)))
     java = f"""package com.store.didcall;
 
 /** {doc} — tools/{src} 에서 자동 생성 (직접 수정하지 마세요) */
 final class {cls} {{
     private {cls}() {{}}
 
-    static final String HTML =
-        {body};
+{"".join(parts)}
+    static final String HTML = new StringBuilder({len(html) + 16}).append({joined.replace(" + ", ").append(")}).toString();
 }}
 """
     open(os.path.join(root, "app/src/main/java/com/store/didcall", cls + ".java"), "w", encoding="utf-8").write(java)

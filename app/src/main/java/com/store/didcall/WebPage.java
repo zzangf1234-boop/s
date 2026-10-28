@@ -4,7 +4,7 @@ package com.store.didcall;
 final class WebPage {
     private WebPage() {}
 
-    static final String HTML =
+    private static final String P0 =
         "<!doctype html>\n" +
         "<html lang=\"ko\"><head><meta charset=\"utf-8\">\n" +
         "<meta name=\"viewport\" content=\"width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no\">\n" +
@@ -129,7 +129,8 @@ final class WebPage {
         " e.preventDefault();if(document.activeElement&&document.activeElement.blur)document.activeElement.blur();\n" +
         " if(m){if(!e.repeat)window.k(m[2]);return}\n" +
         " if(act==='back')del();else if(act==='clear'){v='';show()}else if(e.repeat)return;\n" +
-        " else if(act==='call')callNum();else if(act==='next')next();\n" +
+        " else if(act==='call')callNum();else if(act==='next')next();\n";
+    private static final String P1 =
         " else if(act==='recall')api('/recall').then(function(s){if(s&&s.ok)msg('재호출했습니다')});\n" +
         " else if(act==='blank')api('/clear').then(function(s){if(s&&s.ok)msg('화면을 비웠습니다')});\n" +
         "});\n" +
@@ -137,4 +138,6 @@ final class WebPage {
         "$('dispurl').textContent='http://'+location.host+'/display';\n" +
         "api('/status');setInterval(function(){fetch('/status').then(function(r){return r.json()}).then(render).catch(function(){})},3000);\n" +
         "</script></body></html>\n";
+
+    static final String HTML = new StringBuilder(12352).append(P0).append(P1).toString();
 }
