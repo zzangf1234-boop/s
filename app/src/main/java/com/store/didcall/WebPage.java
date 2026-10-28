@@ -173,7 +173,7 @@ final class WebPage {
         "function renderWait(s){var w=s.waiting||[],on=!!s.kioskOn;$('waitbox').classList.toggle('show',on);\n" +
         " $('kaddr').textContent=location.hostname+' : '+(s.kioskPort||9100);\n" +
         " var lg=s.kioskLog||[];$('klog').textContent=lg.length?lg.map(function(j){var t=new Date(j.time),hh=('0'+t.getHours()).slice(-2)+':'+('0'+t.getMinutes()).slice(-2)+':'+('0'+t.getSeconds()).slice(-2);\n" +
-        "  var r=!j.n?'번호 못 찾음':j.reprint?j.n+'번 재발행 (무시)':j.added?j.n+'번 추가':j.n+'번 (이미 있음)';if(j.items)r+=' · '+j.items;if(j.relay)r+=j.relay==='ok'?' · 주방 전달됨':' · ⚠ '+j.relay;return hh+'  '+r}).join('\\n'):'아직 없음';\n" +
+        "  var r=!j.n?'번호 못 찾음':j.added?j.n+(j.reprint?'번 추가 (재발행)':'번 추가'):j.n+(j.reprint?'번 재발행 · 중복이라 무시':'번 중복이라 무시');if(j.items)r+=' · '+j.items;if(j.relay)r+=j.relay==='ok'?' · 주방 전달됨':' · ⚠ '+j.relay;return hh+'  '+r}).join('\\n'):'아직 없음';\n" +
         " var sig=on+'|'+w.map(function(x){return x.n}).join(',');if(sig===waitSig)return;waitSig=sig;\n" +
         " $('waitlbl').textContent=w.length?'조리중 '+w.length+'건 · 눌러서 호출 · ✕ 삭제 · 빈 칸으로 [호출] = 맨 앞 번호':'조리중 · 키오스크 주문이 들어오면 여기에 표시됩니다';\n" +
         " var box=$('waitlist');box.innerHTML='';w.forEach(function(x){var b=document.createElement('button');b.textContent=x.n;b.title=x.items||'';\n" +
@@ -258,5 +258,5 @@ final class WebPage {
         "api('/status');setInterval(function(){fetch(withTok('/status'),{cache:'no-store'}).then(function(r){return r.json()}).then(render).catch(function(){})},3000);\n" +
         "</script></body></html>\n";
 
-    static final String HTML = new StringBuilder(24037).append(P0).append(P1).append(P2).toString();
+    static final String HTML = new StringBuilder(24065).append(P0).append(P1).append(P2).toString();
 }

@@ -4,6 +4,7 @@ import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.Map;
 
 /**
  * 현재 호출 번호와 최근 호출 목록 (서버 스레드와 화면 스레드가 함께 사용).
@@ -33,10 +34,14 @@ final class CallStore {
     }
     private static final int MAX_WAITING = 60;
     private final LinkedList<Waiting> waiting = new LinkedList<>();
+    /** 최근 1시간 안에 호출한 번호 → 시각 (재발행 주문서로 다시 올라오지 않게) */
+    private static final long RECENT_MS = 60 * 60_000L;
+    private final java.util.HashMap<String, Long> calledAt = new java.util.HashMap<>();
 
     synchronized void call(String n) {
         long now = System.currentTimeMillis();
         removeWaiting(n); // 조리중이던 번호를 부르면 목록에서 빠짐
+        calledAt.put(n, now);
         if (!current.isEmpty() && !current.equals(n)) {
             remove(current);
             history.addFirst(new Entry(current, currentAt));
@@ -68,7 +73,12 @@ final class CallStore {
     synchronized boolean addWaiting(String n, String items) {
         if (!Net.validNumber(n)) return false;
         for (Waiting w : waiting) if (w.n.equals(n)) return false;
-        if (n.equals(current) && System.currentTimeMillis() - currentAt < 30 * 60_000L) return false;
+        long now = System.currentTimeMillis();
+        if (n.equals(current) && now - currentAt < RECENT_MS) return false;
+        Long at = calledAt.get(n);
+        if (at != null && now - at < RECENT_MS) return false;
+        Iterator<Map.Entry<String, Long>> old = calledAt.entrySet().iterator();
+        while (old.hasNext()) if (now - old.next().getValue() >= RECENT_MS) old.remove();
         waiting.addLast(new Waiting(n, items, System.currentTimeMillis()));
         while (waiting.size() > MAX_WAITING) waiting.removeFirst();
         return true;
@@ -144,13 +154,18 @@ final class CallStore {
             seq = Long.parseLong(p[0]);
             current = Net.validNumber(p[1]) ? p[1] : "";
             currentAt = Long.parseLong(p[2]);
+            if (!current.isEmpty()) calledAt.put(current, currentAt);
             history.clear();
             if (!p[3].isEmpty()) {
                 for (String it : p[3].split(",")) {
                     int c = it.lastIndexOf(':');
                     if (c <= 0) continue;
                     String n = it.substring(0, c);
-                    if (Net.validNumber(n)) history.add(new Entry(n, Long.parseLong(it.substring(c + 1))));
+                    if (Net.validNumber(n)) {
+                        long at = Long.parseLong(it.substring(c + 1));
+                        history.add(new Entry(n, at));
+                        calledAt.put(n, at);
+                    }
                 }
             }
             waiting.clear();

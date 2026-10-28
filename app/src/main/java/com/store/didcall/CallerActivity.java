@@ -963,9 +963,8 @@ public class CallerActivity extends Activity implements VoiceRecorder.Host {
                 String n = j.optString("n");
                 log.append(f.format(new java.util.Date(j.optLong("time")))).append("  ");
                 if (n.isEmpty()) log.append("번호 못 찾음");
-                else if (j.optBoolean("reprint")) log.append(n).append("번 재발행 (무시)");
-                else if (j.optBoolean("added")) log.append(n).append("번 추가");
-                else log.append(n).append("번 (이미 있음)");
+                else if (j.optBoolean("added")) log.append(n).append(j.optBoolean("reprint") ? "번 추가 (재발행)" : "번 추가");
+                else log.append(n).append(j.optBoolean("reprint") ? "번 재발행 · 중복이라 무시" : "번 중복이라 무시");
                 if (!j.optString("items").isEmpty()) log.append(" · ").append(j.optString("items"));
                 String r = j.optString("relay");
                 if (!r.isEmpty()) log.append("ok".equals(r) ? " · 주방 전달됨" : " · ⚠ " + r);

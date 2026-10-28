@@ -60,7 +60,8 @@ final class Receipt {
             if (l.isEmpty() || l.startsWith("-") || l.startsWith("=") || l.startsWith("[") || l.startsWith("(")) continue;
             if (l.matches("[-=_*\\s]{5,}")) continue;
             if (l.matches(".*(주\\s*문|번\\s*호|시\\s*간|PosNo|POS|합\\s*계|금\\s*액|사업자|대표자|TEL|전화|영수|판매|카\\s*드|부가세|공급가|Wifi|재발행).*")) continue;
-            if (l.matches("[0-9\\s:./,-]+")) continue; // 숫자·날짜만 있는 줄 (수량 등)
+            if (l.matches("[0-9\\s:./,()-]+")) continue; // 숫자·날짜·괄호만 있는 줄 (수량, 줄바꿈된 1) 등)
+            if (l.matches("(포장|매장|신규|추가|취소|배달|먹고\\s*가기|테이크\\s*아웃)(\\s.*)?")) continue; // 포장·신규 표시 줄
             l = l.replaceAll("\\s{2,}.*$", "");          // 오른쪽 수량·금액 칸 제거
             l = l.replaceAll("[.,]$", "").trim();
             if (l.length() >= 2 && out.size() < 6) out.add(l);

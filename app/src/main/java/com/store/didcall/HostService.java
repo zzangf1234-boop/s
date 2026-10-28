@@ -431,11 +431,11 @@ public class HostService extends Service implements CallServer.Host {
     }
 
     // ───────────────────────── 키오스크 주문서 ─────────────────────────
-    /** 주문서 한 장을 받으면: 주문번호를 읽어 조리중에 추가 (재발행은 무시) */
+    /** 주문서 한 장을 받으면: 주문번호를 읽어 조리중에 추가 (중복·최근 호출 번호는 무시) */
     private void handleReceipt(byte[] raw, String from, String relayResult) {
         Receipt r = Receipt.parse(raw, prefs.getString(K_ORDER_LABEL, "주문번호"));
         boolean added = false;
-        if (r.number != null && !r.reprint) {
+        if (r.number != null) { // 재발행도 읽음 — 이미 조리중이거나 최근에 부른 번호면 addWaiting 이 무시
             added = store.addWaiting(r.number, r.summary());
             if (added) prefs.edit().putString(K_STATE, store.save()).apply();
         }
