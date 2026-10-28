@@ -3,8 +3,12 @@ package com.store.didcall;
 import org.json.JSONArray;
 import org.json.JSONObject;
 
-import java.io.BufferedReader;
-import java.io.InputStreamReader;
+import java.io.BufferedInputStream;
+import java.io.ByteArrayOutputStream;
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.IOException;
+import java.io.InputStream;
 import java.io.OutputStream;
 import java.net.DatagramPacket;
 import java.net.DatagramSocket;
@@ -21,26 +25,32 @@ import java.util.concurrent.Executors;
 /**
  * TV 쪽에서 돌아가는 아주 작은 HTTP 서버 + 자동 검색 응답기.
  *
- *  GET /call?n=123   번호 호출
- *  GET /recall       현재 번호 다시 호출
- *  GET /clear        화면 비우기
- *  GET /status       현재 상태(JSON)
- *  GET /config?tts=..&sub=..&repeat=2   안내 문구/반복 횟수 변경
- *  GET /             휴대폰 브라우저용 호출 페이지
+ *  GET  /call?n=123          번호 호출
+ *  GET  /recall              현재 번호 다시 호출
+ *  GET  /clear               화면 비우기
+ *  GET  /status              현재 상태(JSON)
+ *  GET  /config?tts=..&sub=..&repeat=2&slide=8&fit=contain&popup=10
+ *  POST /image               이미지 추가 (본문 = 이미지 파일)
+ *  GET  /images              이미지 목록
+ *  GET  /img/{name}          이미지 보기
+ *  GET  /image/delete?name=  이미지 1장 삭제
+ *  GET  /image/clear         이미지 모두 삭제
+ *  GET  /                    휴대폰 브라우저용 호출 페이지
  */
 final class CallServer {
 
     interface Host {
         CallStore store();
-        String ttsTemplate();
-        String subtitle();
-        int repeat();
-        void saveConfig(String tts, String subtitle, int repeat);
-        /** event: "call" | "recall" | "clear" | "config" — 서버 스레드에서 호출됨 */
+        ImageStore images();
+        void putConfig(JSONObject o) throws Exception;
+        void applyConfig(Map<String, String> q);
+        /** event: call | recall | clear | config | images — 서버 스레드에서 호출됨 */
         void onChanged(String event);
     }
 
     private static final Charset UTF8 = Charset.forName("UTF-8");
+    private static final int MAX_UPLOAD = 20 * 1024 * 1024;
+    private static final String JSON = "application/json; charset=utf-8";
 
     private final Host host;
     private final ExecutorService pool = Executors.newFixedThreadPool(4);
@@ -115,16 +125,24 @@ final class CallServer {
 
     private void handle(Socket s) {
         try {
-            s.setSoTimeout(5000);
-            BufferedReader in = new BufferedReader(new InputStreamReader(s.getInputStream(), UTF8));
-            String line = in.readLine();
+            s.setSoTimeout(15000);
+            InputStream in = new BufferedInputStream(s.getInputStream());
+            OutputStream out = s.getOutputStream();
+            String line = readLine(in);
             if (line == null) return;
-            // 헤더는 읽고 버림
+
+            int contentLength = 0;
             String h;
-            while ((h = in.readLine()) != null && !h.isEmpty()) { /* skip */ }
+            while ((h = readLine(in)) != null && !h.isEmpty()) {
+                int c = h.indexOf(':');
+                if (c > 0 && h.substring(0, c).trim().equalsIgnoreCase("content-length")) {
+                    try { contentLength = Integer.parseInt(h.substring(c + 1).trim()); } catch (Exception ignored) {}
+                }
+            }
 
             String[] parts = line.split(" ");
             if (parts.length < 2) return;
+            String method = parts[0];
             String target = parts[1];
             String path = target;
             Map<String, String> q = new HashMap<>();
@@ -140,7 +158,28 @@ final class CallServer {
                 }
             }
 
-            OutputStream out = s.getOutputStream();
+            if ("POST".equals(method)) {
+                if (!"/image".equals(path)) { send(out, 404, "text/plain; charset=utf-8", "Not Found"); return; }
+                if (contentLength <= 0 || contentLength > MAX_UPLOAD) {
+                    send(out, 400, JSON, status(false, "이미지는 20MB 이하만 올릴 수 있습니다"));
+                    return;
+                }
+                byte[] body = readFully(in, contentLength);
+                String err = host.images().add(body);
+                if (err == null) host.onChanged("images");
+                send(out, err == null ? 200 : 400, JSON, status(err == null, err));
+                return;
+            }
+
+            if (path.startsWith("/img/")) {
+                File f = host.images().get(path.substring(5));
+                if (f == null) { send(out, 404, "text/plain; charset=utf-8", "Not Found"); return; }
+                String n = f.getName();
+                String type = n.endsWith(".png") ? "image/png" : n.endsWith(".webp") ? "image/webp" : "image/jpeg";
+                send(out, 200, type, readFile(f));
+                return;
+            }
+
             switch (path) {
                 case "/":
                 case "/index.html":
@@ -150,40 +189,54 @@ final class CallServer {
                     send(out, 200, "text/plain; charset=utf-8", "DIDCALL OK");
                     break;
                 case "/status":
-                    send(out, 200, "application/json; charset=utf-8", status(true, null));
+                    send(out, 200, JSON, status(true, null));
                     break;
                 case "/call": {
                     String n = q.get("n");
                     if (n != null) n = n.trim();
                     if (!Net.validNumber(n)) {
-                        send(out, 400, "application/json; charset=utf-8", status(false, "번호는 숫자/영문 1~6자"));
+                        send(out, 400, JSON, status(false, "번호는 숫자/영문 1~6자"));
                         break;
                     }
                     host.store().call(n);
                     host.onChanged("call");
-                    send(out, 200, "application/json; charset=utf-8", status(true, null));
+                    send(out, 200, JSON, status(true, null));
                     break;
                 }
                 case "/recall":
                     if (!host.store().current().isEmpty()) host.onChanged("recall");
-                    send(out, 200, "application/json; charset=utf-8", status(true, null));
+                    send(out, 200, JSON, status(true, null));
                     break;
                 case "/clear":
                     host.store().clear();
                     host.onChanged("clear");
-                    send(out, 200, "application/json; charset=utf-8", status(true, null));
+                    send(out, 200, JSON, status(true, null));
                     break;
-                case "/config": {
-                    String tts = q.containsKey("tts") ? q.get("tts") : host.ttsTemplate();
-                    String sub = q.containsKey("sub") ? q.get("sub") : host.subtitle();
-                    int rep = host.repeat();
-                    try { if (q.containsKey("repeat")) rep = Integer.parseInt(q.get("repeat")); } catch (Exception ignored) {}
-                    rep = Math.max(0, Math.min(5, rep));
-                    host.saveConfig(tts, sub, rep);
+                case "/config":
+                    host.applyConfig(q);
                     host.onChanged("config");
-                    send(out, 200, "application/json; charset=utf-8", status(true, null));
+                    send(out, 200, JSON, status(true, null));
+                    break;
+                case "/images": {
+                    JSONArray arr = new JSONArray();
+                    for (File f : host.images().list()) arr.put(f.getName());
+                    JSONObject o = new JSONObject();
+                    o.put("ok", true);
+                    o.put("images", arr);
+                    send(out, 200, JSON, o.toString());
                     break;
                 }
+                case "/image/delete": {
+                    boolean ok = host.images().delete(q.get("name"));
+                    if (ok) host.onChanged("images");
+                    send(out, 200, JSON, status(ok, ok ? null : "이미지를 찾을 수 없습니다"));
+                    break;
+                }
+                case "/image/clear":
+                    host.images().clear();
+                    host.onChanged("images");
+                    send(out, 200, JSON, status(true, null));
+                    break;
                 default:
                     send(out, 404, "text/plain; charset=utf-8", "Not Found");
             }
@@ -202,17 +255,49 @@ final class CallServer {
             JSONArray hist = new JSONArray();
             for (String n : host.store().history()) hist.put(n);
             o.put("history", hist);
-            o.put("tts", host.ttsTemplate());
-            o.put("sub", host.subtitle());
-            o.put("repeat", host.repeat());
+            o.put("images", host.images().count());
+            host.putConfig(o);
             return o.toString();
         } catch (Exception e) {
             return "{\"ok\":false}";
         }
     }
 
-    private static void send(OutputStream out, int code, String type, String body) throws Exception {
-        byte[] b = body.getBytes(UTF8);
+    /** 헤더 한 줄 읽기 (본문이 바이너리일 수 있어 Reader 대신 바이트 단위로) */
+    private static String readLine(InputStream in) throws IOException {
+        ByteArrayOutputStream b = new ByteArrayOutputStream();
+        int c;
+        while ((c = in.read()) != -1) {
+            if (c == '\n') break;
+            if (c != '\r') b.write(c);
+            if (b.size() > 8192) throw new IOException("header too long");
+        }
+        if (c == -1 && b.size() == 0) return null;
+        return new String(b.toByteArray(), UTF8);
+    }
+
+    private static byte[] readFully(InputStream in, int len) throws IOException {
+        byte[] buf = new byte[len];
+        int off = 0;
+        while (off < len) {
+            int r = in.read(buf, off, len - off);
+            if (r < 0) throw new IOException("unexpected end");
+            off += r;
+        }
+        return buf;
+    }
+
+    private static byte[] readFile(File f) throws IOException {
+        try (FileInputStream in = new FileInputStream(f)) {
+            return readFully(in, (int) f.length());
+        }
+    }
+
+    private static void send(OutputStream out, int code, String type, String body) throws IOException {
+        send(out, code, type, body.getBytes(UTF8));
+    }
+
+    private static void send(OutputStream out, int code, String type, byte[] b) throws IOException {
         String reason = code == 200 ? "OK" : code == 400 ? "Bad Request" : "Not Found";
         String head = "HTTP/1.1 " + code + " " + reason + "\r\n"
                 + "Content-Type: " + type + "\r\n"
