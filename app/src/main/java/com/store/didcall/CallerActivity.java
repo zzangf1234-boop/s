@@ -1,30 +1,29 @@
 package com.store.didcall;
 
+import android.annotation.SuppressLint;
 import android.app.Activity;
 import android.app.AlertDialog;
-import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
+import android.content.pm.PackageManager;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.graphics.Canvas;
 import android.graphics.Color;
 import android.graphics.Matrix;
 import android.media.ExifInterface;
-import android.net.DhcpInfo;
 import android.os.Build;
 import android.net.Uri;
-import android.net.wifi.WifiManager;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
-import android.text.InputType;
+import android.os.PowerManager;
+import android.provider.Settings;
 import android.view.Gravity;
 import android.view.HapticFeedbackConstants;
 import android.view.View;
 import android.view.WindowManager;
 import android.widget.Button;
-import android.widget.EditText;
 import android.widget.LinearLayout;
 import android.widget.TextView;
 
@@ -35,19 +34,15 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.util.ArrayList;
 import java.util.List;
-import java.net.DatagramPacket;
-import java.net.DatagramSocket;
 import java.net.HttpURLConnection;
-import java.net.InetAddress;
 import java.net.URL;
 import java.net.URLEncoder;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
-/** 카운터 공기계에서 실행: 번호를 입력해 TV로 전송 */
+/** 카운터 공기계에서 실행: 호출 서버(호스트)를 켜고, 번호를 입력해 TV·PC 화면에 호출 */
 public class CallerActivity extends Activity {
 
-    private static final String K_HOST = "tv_host";
     private static final String K_LAST = "last_sent";
     private static final int REQ_IMAGES = 41;
     private static final int MAX_SIDE = 1920;
@@ -56,9 +51,13 @@ public class CallerActivity extends Activity {
     private final ExecutorService io = Executors.newSingleThreadExecutor();
     private SharedPreferences prefs;
 
-    private TextView statusView, inputView, currentView, msgView;
+    private TextView statusView, addrView, inputView, currentView, msgView;
     private String input = "";
-    private String host = "";
+    /** 호출 서버는 이 폰 안에서 돌아가므로 항상 자기 자신에게 요청 */
+    private final String host = "127.0.0.1:" + Net.HTTP_PORT;
+    private final Runnable poller = new Runnable() {
+        @Override public void run() { checkConnection(); ui.postDelayed(this, 3000); }
+    };
     private int lastSent;
 
     @Override
@@ -66,17 +65,27 @@ public class CallerActivity extends Activity {
         super.onCreate(savedInstanceState);
         getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
         prefs = getSharedPreferences(MainActivity.PREFS, MODE_PRIVATE);
-        host = prefs.getString(K_HOST, "");
         lastSent = prefs.getInt(K_LAST, 0);
         buildUi();
-
-        if (host.isEmpty()) discover(); else checkConnection();
+        HostService.start(this);
+        if (Build.VERSION.SDK_INT >= 33
+                && checkSelfPermission("android.permission.POST_NOTIFICATIONS") != PackageManager.PERMISSION_GRANTED) {
+            requestPermissions(new String[]{"android.permission.POST_NOTIFICATIONS"}, 1);
+        }
     }
 
     @Override
     protected void onResume() {
         super.onResume();
-        if (!host.isEmpty()) checkConnection();
+        if (!HostService.running) HostService.start(this);
+        ui.removeCallbacks(poller);
+        ui.postDelayed(poller, 600);
+    }
+
+    @Override
+    protected void onPause() {
+        super.onPause();
+        ui.removeCallbacks(poller);
     }
 
     @Override
@@ -93,18 +102,23 @@ public class CallerActivity extends Activity {
         root.setBackgroundColor(Ui.BG);
         root.setPadding(Ui.dp(this, 14), Ui.dp(this, 14), Ui.dp(this, 14), Ui.dp(this, 14));
 
-        // 상단: 연결 상태 (누르면 TV 주소 설정) + 설정 버튼
+        // 상단: 서버 상태 + TV·PC 화면 주소 (누르면 연결 방법) + 설정 버튼
         LinearLayout top = new LinearLayout(this);
         top.setGravity(Gravity.CENTER_VERTICAL);
-        statusView = Ui.text(this, "TV 찾는 중…", 15, Ui.MUTED, false);
-        statusView.setOnClickListener(v -> showHostDialog());
-        top.addView(statusView, new LinearLayout.LayoutParams(0, -2, 1f));
+        LinearLayout info = new LinearLayout(this);
+        info.setOrientation(LinearLayout.VERTICAL);
+        info.setOnClickListener(v -> showConnectInfo());
+        statusView = Ui.text(this, "호출 서버 시작 중…", 15, Ui.MUTED, true);
+        addrView = Ui.text(this, "", 14, Ui.TEXT, false);
+        info.addView(statusView);
+        info.addView(addrView);
+        top.addView(info, new LinearLayout.LayoutParams(0, -2, 1f));
         Button menu = Ui.button(this, "⚙", Ui.KEY, 18);
         menu.setOnClickListener(v -> showMenu());
         top.addView(menu, new LinearLayout.LayoutParams(Ui.dp(this, 52), Ui.dp(this, 44)));
         root.addView(top);
 
-        currentView = Ui.text(this, "TV 현재 번호: -", 15, Ui.MUTED, false);
+        currentView = Ui.text(this, "현재 호출 번호: -", 15, Ui.MUTED, false);
         currentView.setPadding(0, Ui.dp(this, 4), 0, g);
         root.addView(currentView);
 
@@ -211,7 +225,6 @@ public class CallerActivity extends Activity {
     }
 
     private void request(final String path, final String okMsg, final Runnable onOk) {
-        if (host.isEmpty()) { msg("TV가 연결되지 않았습니다. 상단을 눌러 설정하세요"); return; }
         msg("전송 중…");
         io.execute(() -> {
             try {
@@ -227,8 +240,9 @@ public class CallerActivity extends Activity {
                 });
             } catch (Exception e) {
                 ui.post(() -> {
-                    setStatus(false);
-                    msg("✖ TV에 연결할 수 없습니다. 같은 와이파이인지 확인하세요");
+                    setStatus(false, 0);
+                    msg("✖ 호출 서버가 응답하지 않습니다. 잠시 후 다시 눌러 주세요");
+                    HostService.start(this);
                 });
             }
         });
@@ -240,21 +254,64 @@ public class CallerActivity extends Activity {
                 JSONObject s = new JSONObject(get("http://" + host + "/status"));
                 ui.post(() -> applyStatus(s));
             } catch (Exception e) {
-                ui.post(() -> setStatus(false));
+                ui.post(() -> setStatus(false, 0));
             }
         });
     }
 
     private void applyStatus(JSONObject s) {
-        setStatus(true);
+        setStatus(true, s.optInt("displays", 0));
         String cur = s.optString("current", "");
-        currentView.setText("TV 현재 번호: " + (cur.isEmpty() ? "-" : cur));
+        currentView.setText("현재 호출 번호: " + (cur.isEmpty() ? "-" : cur));
         try { if (lastSent == 0 && !cur.isEmpty()) lastSent = Integer.parseInt(cur); } catch (Exception ignored) {}
     }
 
-    private void setStatus(boolean ok) {
-        statusView.setText((ok ? "● 연결됨  " : "● 연결 끊김  ") + host + "  (변경)");
-        statusView.setTextColor(ok ? 0xFF4CD964 : 0xFFFF5A5A);
+    private void setStatus(boolean ok, int displays) {
+        String ip = Net.localIp();
+        if (!ok) {
+            statusView.setText("● 호출 서버 시작 중…");
+            statusView.setTextColor(0xFFFFCC33);
+        } else if (displays == 0) {
+            statusView.setText("● 서버 켜짐 · 연결된 TV/PC 화면 없음");
+            statusView.setTextColor(0xFFFFCC33);
+        } else {
+            statusView.setText("● 서버 켜짐 · TV/PC 화면 " + displays + "대 연결됨");
+            statusView.setTextColor(0xFF4CD964);
+        }
+        addrView.setText("0.0.0.0".equals(ip) ? "와이파이에 연결되어 있지 않습니다"
+                : "이 폰 주소  " + ip + "   (눌러서 연결 방법 보기)");
+    }
+
+    private void showConnectInfo() {
+        String ip = Net.localIp();
+        String base = "http://" + ip + ":" + Net.HTTP_PORT;
+        new AlertDialog.Builder(this, android.R.style.Theme_Material_Dialog_Alert)
+                .setTitle("TV·PC 화면 연결 방법")
+                .setMessage("이 폰이 호출 서버입니다. TV·PC는 같은 와이파이에 연결하세요.\n\n"
+                        + "📺 안드로이드 TV 기기\nDID 앱 → 'TV 화면' 선택 → 자동으로 이 폰을 찾습니다.\n"
+                        + "못 찾으면 주소 직접 입력:  " + ip + "\n\n"
+                        + "💻 윈도우 PC (크롬·엣지)\n" + base + "/display\n\n"
+                        + "📱 다른 폰·PC에서 호출하기\n" + base + "\n\n"
+                        + "※ 주소가 바뀌지 않도록 공유기에서 이 폰의 IP를 고정(DHCP 예약)해 두면 좋습니다.")
+                .setPositiveButton("확인", null)
+                .show();
+    }
+
+    @SuppressLint("BatteryLife")
+    private void askBatteryExemption() {
+        try {
+            if (Build.VERSION.SDK_INT >= 23) {
+                PowerManager pm = (PowerManager) getSystemService(POWER_SERVICE);
+                if (pm != null && pm.isIgnoringBatteryOptimizations(getPackageName())) {
+                    msg("이미 꺼짐 방지가 설정되어 있습니다");
+                    return;
+                }
+                startActivity(new Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS,
+                        Uri.parse("package:" + getPackageName())));
+            }
+        } catch (Exception e) {
+            msg("설정 → 앱 → DID 번호호출 → 배터리 → '제한 없음'으로 바꿔 주세요");
+        }
     }
 
     private static String get(String url) throws Exception {
@@ -274,74 +331,8 @@ public class CallerActivity extends Activity {
         }
     }
 
-    // ───────────────────────── TV 자동 찾기 ─────────────────────────
-    private void discover() {
-        statusView.setText("TV 찾는 중…");
-        statusView.setTextColor(Ui.MUTED);
-        io.execute(() -> {
-            String found = null;
-            DatagramSocket sock = null;
-            try {
-                sock = new DatagramSocket();
-                sock.setBroadcast(true);
-                sock.setSoTimeout(1200);
-                byte[] msg = Net.DISCOVER_MSG.getBytes("UTF-8");
-                InetAddress[] targets = {InetAddress.getByName("255.255.255.255"), subnetBroadcast()};
-                for (int attempt = 0; attempt < 3 && found == null; attempt++) {
-                    for (InetAddress t : targets) {
-                        if (t != null) sock.send(new DatagramPacket(msg, msg.length, t, Net.DISCOVERY_PORT));
-                    }
-                    try {
-                        byte[] buf = new byte[256];
-                        DatagramPacket p = new DatagramPacket(buf, buf.length);
-                        sock.receive(p);
-                        String reply = new String(p.getData(), 0, p.getLength(), "UTF-8");
-                        if (reply.startsWith(Net.DISCOVER_REPLY)) {
-                            String[] parts = reply.split("\\|");
-                            String port = parts.length > 1 ? parts[1] : String.valueOf(Net.HTTP_PORT);
-                            found = p.getAddress().getHostAddress() + ":" + port;
-                        }
-                    } catch (java.net.SocketTimeoutException ignored) {
-                    }
-                }
-            } catch (Exception ignored) {
-            } finally {
-                if (sock != null) sock.close();
-            }
-            final String result = found;
-            ui.post(() -> {
-                if (result != null) {
-                    host = result;
-                    prefs.edit().putString(K_HOST, host).apply();
-                    msg("TV를 찾았습니다");
-                    checkConnection();
-                } else {
-                    statusView.setText("TV를 찾지 못했습니다 (눌러서 주소 입력)");
-                    statusView.setTextColor(0xFFFF5A5A);
-                    msg("TV 화면 하단에 표시된 주소를 직접 입력해 주세요");
-                }
-            });
-        });
-    }
-
-    private InetAddress subnetBroadcast() {
-        try {
-            WifiManager wm = (WifiManager) getApplicationContext().getSystemService(Context.WIFI_SERVICE);
-            DhcpInfo d = wm == null ? null : wm.getDhcpInfo();
-            if (d == null || d.ipAddress == 0) return null;
-            int mask = d.netmask == 0 ? 0x00FFFFFF : d.netmask;
-            int bc = (d.ipAddress & mask) | ~mask;
-            byte[] q = new byte[4];
-            for (int k = 0; k < 4; k++) q[k] = (byte) ((bc >> (k * 8)) & 0xFF);
-            return InetAddress.getByAddress(q);
-        } catch (Exception e) {
-            return null;
-        }
-    }
-
     // ───────────────────────── TV 이미지 업로드 ─────────────────────────
     private void pickImages() {
-        if (host.isEmpty()) { msg("먼저 TV를 연결하세요"); return; }
         Intent i = new Intent(Intent.ACTION_GET_CONTENT);
         i.setType("image/*");
         i.addCategory(Intent.CATEGORY_OPENABLE);
@@ -376,7 +367,7 @@ public class CallerActivity extends Activity {
                     JSONObject s = new JSONObject(post(target, jpg));
                     if (s.optBoolean("ok")) ok++; else lastErr = s.optString("error");
                 } catch (Exception e) {
-                    lastErr = "TV에 연결할 수 없습니다";
+                    lastErr = "호출 서버에 저장하지 못했습니다";
                 }
             }
             final int okCount = ok;
@@ -453,47 +444,31 @@ public class CallerActivity extends Activity {
     }
 
     // ───────────────────────── 대화상자 ─────────────────────────
-    private void showHostDialog() {
-        final EditText et = new EditText(this);
-        et.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_VARIATION_URI);
-        et.setHint("예) 192.168.0.10:8765");
-        et.setText(host);
-        new AlertDialog.Builder(this, android.R.style.Theme_Material_Dialog_Alert)
-                .setTitle("TV 주소")
-                .setMessage("TV 화면 하단에 표시된 주소를 입력하세요.")
-                .setView(et)
-                .setPositiveButton("저장", (d, w) -> {
-                    String h = et.getText().toString().trim().replace("http://", "");
-                    if (h.endsWith("/")) h = h.substring(0, h.length() - 1);
-                    if (!h.isEmpty() && !h.contains(":")) h = h + ":" + Net.HTTP_PORT;
-                    host = h;
-                    prefs.edit().putString(K_HOST, host).apply();
-                    checkConnection();
-                })
-                .setNeutralButton("자동 찾기", (d, w) -> discover())
-                .setNegativeButton("취소", null)
-                .show();
-    }
-
     private void showMenu() {
         new AlertDialog.Builder(this, android.R.style.Theme_Material_Dialog_Alert)
-                .setItems(new String[]{"TV 이미지 추가 (갤러리)", "TV 이미지 관리 · 안내 설정 (브라우저)", "TV 주소 변경 / 자동 찾기", "번호 초기화 (다음 번호 = 1)", "역할 다시 선택"},
+                .setItems(new String[]{"TV 이미지 추가 (갤러리)", "이미지 관리 · 안내 설정 (브라우저)", "TV·PC 화면 연결 방법",
+                                "번호 초기화 (다음 번호 = 1)", "꺼짐 방지 (배터리 최적화 제외)", "역할 다시 선택", "호출 서버 끄고 종료"},
                         (d, which) -> {
                             if (which == 0) {
                                 pickImages();
                             } else if (which == 1) {
-                                if (host.isEmpty()) { msg("먼저 TV를 연결하세요"); return; }
                                 try { startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse("http://" + host + "/"))); }
                                 catch (Exception e) { msg("브라우저를 열 수 없습니다"); }
                             } else if (which == 2) {
-                                showHostDialog();
+                                showConnectInfo();
                             } else if (which == 3) {
                                 lastSent = 0;
                                 prefs.edit().putInt(K_LAST, 0).apply();
                                 msg("번호를 초기화했습니다");
-                            } else {
+                            } else if (which == 4) {
+                                askBatteryExemption();
+                            } else if (which == 5) {
+                                HostService.stop(this);
                                 prefs.edit().remove(MainActivity.KEY_MODE).apply();
                                 startActivity(new Intent(this, MainActivity.class).putExtra(MainActivity.EXTRA_CHOOSE, true));
+                                finish();
+                            } else {
+                                HostService.stop(this);
                                 finish();
                             }
                         })

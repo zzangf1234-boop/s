@@ -23,7 +23,8 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
 /**
- * TV 쪽에서 돌아가는 아주 작은 HTTP 서버 + 자동 검색 응답기.
+ * 호출기(호스트) 폰에서 돌아가는 아주 작은 HTTP 서버 + 자동 검색 응답기.
+ * TV 화면 기기와 PC 브라우저는 /display 페이지로 접속해 화면을 표시합니다.
  *
  *  GET  /call?n=123          번호 호출
  *  GET  /recall              현재 번호 다시 호출
@@ -61,7 +62,9 @@ final class CallServer {
     private static final String JSON = "application/json; charset=utf-8";
 
     private final Host host;
-    private final ExecutorService pool = Executors.newFixedThreadPool(4);
+    private final ExecutorService pool = Executors.newFixedThreadPool(8);
+    /** 호출 화면(TV·PC)별 마지막 접속 시각 — 호출기에 '화면 N대 연결됨' 표시용 */
+    private final java.util.concurrent.ConcurrentHashMap<String, Long> displays = new java.util.concurrent.ConcurrentHashMap<>();
     private volatile boolean running;
     private ServerSocket server;
     private DatagramSocket udp;
@@ -215,6 +218,7 @@ final class CallServer {
                     send(out, 200, "text/plain; charset=utf-8", "DIDCALL OK");
                     break;
                 case "/status":
+                    if (q.containsKey("d")) displays.put(s.getInetAddress().getHostAddress(), System.currentTimeMillis());
                     send(out, 200, JSON, status(true, null));
                     break;
                 case "/call": {
@@ -286,11 +290,21 @@ final class CallServer {
             o.put("history", hist);
             o.put("images", host.images().count());
             o.put("seq", host.store().seq());
+            o.put("displays", displayCount());
             host.putConfig(o);
             return o.toString();
         } catch (Exception e) {
             return "{\"ok\":false}";
         }
+    }
+
+    int displayCount() {
+        long limit = System.currentTimeMillis() - 6000;
+        int n = 0;
+        for (java.util.Iterator<Long> it = displays.values().iterator(); it.hasNext(); ) {
+            if (it.next() < limit) it.remove(); else n++;
+        }
+        return n;
     }
 
     /** 헤더 한 줄 읽기 (본문이 바이너리일 수 있어 Reader 대신 바이트 단위로) */

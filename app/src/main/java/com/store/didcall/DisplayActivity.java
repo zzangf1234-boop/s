@@ -1,108 +1,79 @@
 package com.store.didcall;
 
+import android.annotation.SuppressLint;
 import android.app.Activity;
 import android.app.AlertDialog;
-import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
-import android.graphics.Bitmap;
-import android.graphics.BitmapFactory;
 import android.graphics.Color;
-import android.graphics.Paint;
-import android.media.AudioFormat;
-import android.media.AudioManager;
-import android.media.AudioTrack;
-import android.net.wifi.WifiManager;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
-import android.speech.tts.TextToSpeech;
-import android.speech.tts.UtteranceProgressListener;
+import android.os.SystemClock;
+import android.text.InputType;
 import android.util.TypedValue;
 import android.view.Gravity;
 import android.view.KeyEvent;
+import android.view.MotionEvent;
 import android.view.View;
 import android.view.WindowManager;
-import android.view.animation.OvershootInterpolator;
+import android.webkit.WebChromeClient;
+import android.webkit.WebSettings;
+import android.webkit.WebView;
+import android.webkit.WebViewClient;
+import android.widget.Button;
+import android.widget.EditText;
 import android.widget.FrameLayout;
-import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.TextView;
 
-import org.json.JSONObject;
-
-import java.io.ByteArrayOutputStream;
-import java.io.File;
-import java.util.Arrays;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.TimeUnit;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Locale;
-import java.util.Map;
+import java.net.HttpURLConnection;
+import java.net.URL;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
 /**
- * TV에 연결된 안드로이드 기기에서 실행.
- * 왼쪽: 이미지 슬라이드쇼 / 오른쪽: 현재 번호 + 최근 호출
- * 번호가 들어오면 화면 가운데에 팝업 + 딩동 + 음성 안내
+ * TV에 연결된 안드로이드 기기에서 실행 (화면 표시 전용).
+ * 같은 와이파이의 호출기(호스트)를 자동으로 찾아 호출 화면(/display)을 전체화면으로 띄웁니다.
+ * PC 브라우저 화면과 완전히 같은 화면·소리가 나옵니다.
  */
-public class DisplayActivity extends Activity implements CallServer.Host {
+public class DisplayActivity extends Activity {
 
-    private static final String K_TTS = "tts", K_SUB = "sub", K_REPEAT = "repeat";
-    private static final String K_SLIDE = "slide", K_FIT = "fit", K_POPUP = "popup", K_KEEP = "keep";
-    private static final String DEF_TTS = "{n}번 고객님, 주문하신 메뉴가 준비되었습니다.";
-    private static final String DEF_SUB = "주문하신 메뉴가 준비되었습니다";
+    private static final String K_HOST = "host_addr";
 
     private final Handler ui = new Handler(Looper.getMainLooper());
-    private final ExecutorService decoder = Executors.newSingleThreadExecutor();
-    private final CallStore store = new CallStore();
-    private ImageStore images;
-    private CallServer server;
+    private final ExecutorService bg = Executors.newCachedThreadPool();
     private SharedPreferences prefs;
-    private TextToSpeech tts;
-    private boolean ttsReady;
-    // PC 브라우저 화면에 같은 목소리를 보내기 위해 음성을 파일로 만드는 전용 엔진
-    private TextToSpeech fileTts;
-    private volatile boolean fileTtsReady;
-    private File voiceDir;
-    private final ExecutorService voiceExec = Executors.newSingleThreadExecutor();
-    private final Map<String, CountDownLatch> pendingVoice = new ConcurrentHashMap<>();
-    private byte[] chimeWav;
-    private WifiManager.MulticastLock multicastLock;
-    private short[] chimePcm;
-    private int screenW, screenH;
 
-    // 왼쪽 이미지
-    private FrameLayout imageFrame;
-    private ImageView imgA, imgB;
-    private boolean aFront = true;
-    private TextView placeholder;
-    private List<File> slides = new ArrayList<>();
-    private int slideIndex = -1;
+    private WebView web;
+    private LinearLayout searchPane;
+    private TextView searchTitle, searchMsg;
+    private Button retryBtn;
 
-    // 오른쪽 정보
-    private LinearLayout right;
-    private TextView curView, addrView;
-    private final TextView[] historyViews = new TextView[5];
+    private String host = "";
+    private boolean searching;
+    private int fails;
+    private int screenH;
 
-    // 팝업
-    private FrameLayout overlay;
-    private LinearLayout card;
-    private TextView popLabel, popNumber, popSub;
-    private int flashLeft;
-    private String speakNumber = "";
-
-    private final Runnable slideRunnable = this::nextSlide;
-    private final Runnable hideRunnable = this::hidePopup;
-    private final Runnable flashRunnable = this::flashStep;
-    private final Runnable speakRunnable = this::speak;
-    private final Runnable tickRunnable = new Runnable() {
+    /** 10초마다 호출기 연결 확인, 끊기면 다시 찾기 (호출기 주소가 바뀌어도 자동 복구) */
+    private final Runnable watchdog = new Runnable() {
         @Override public void run() {
-            render(); // 5분 지난 최근 호출을 화면에서 지움
-            ui.postDelayed(this, 10_000);
+            final String h = host;
+            if (h.isEmpty() || searching) return;
+            bg.execute(() -> {
+                boolean ok = Discovery.ping(h, 2500);
+                ui.post(() -> {
+                    if (!h.equals(host) || searching) return;
+                    if (ok) {
+                        if (fails >= 1) web.reload(); // 끊겼다가 돌아오면 화면 새로 고침
+                        fails = 0;
+                    } else if (++fails >= 3) {
+                        startSearch();
+                        return;
+                    }
+                    ui.postDelayed(watchdog, 10_000);
+                });
+            });
         }
     };
 
@@ -111,190 +82,96 @@ public class DisplayActivity extends Activity implements CallServer.Host {
         super.onCreate(savedInstanceState);
         getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
         prefs = getSharedPreferences(MainActivity.PREFS, MODE_PRIVATE);
-        images = new ImageStore(new File(getFilesDir(), "images"));
         int w = getResources().getDisplayMetrics().widthPixels;
         int h = getResources().getDisplayMetrics().heightPixels;
-        screenW = Math.max(w, h);
         screenH = Math.min(w, h);
-
         buildUi();
-        chimePcm = buildChime();
-        chimeWav = toWav(chimePcm, 22050);
-        voiceDir = new File(getCacheDir(), "voice");
-        //noinspection ResultOfMethodCallIgnored
-        voiceDir.mkdirs();
-
-        tts = new TextToSpeech(this, status -> {
-            if (status == TextToSpeech.SUCCESS) {
-                int r = tts.setLanguage(Locale.KOREAN);
-                ttsReady = r != TextToSpeech.LANG_MISSING_DATA && r != TextToSpeech.LANG_NOT_SUPPORTED;
-                tts.setSpeechRate(0.95f);
-            }
-        });
-        fileTts = new TextToSpeech(this, status -> {
-            if (status != TextToSpeech.SUCCESS) return;
-            int r = fileTts.setLanguage(Locale.KOREAN);
-            fileTts.setSpeechRate(0.95f);
-            fileTts.setOnUtteranceProgressListener(new UtteranceProgressListener() {
-                @Override public void onStart(String id) {}
-                @Override public void onDone(String id) { finishVoice(id, true); }
-                @Override public void onError(String id) { finishVoice(id, false); }
-            });
-            fileTtsReady = r != TextToSpeech.LANG_MISSING_DATA && r != TextToSpeech.LANG_NOT_SUPPORTED;
-        });
-
-        // 일부 기기는 이 락이 있어야 브로드캐스트(자동 검색)를 받음
-        try {
-            WifiManager wm = (WifiManager) getApplicationContext().getSystemService(Context.WIFI_SERVICE);
-            if (wm != null) {
-                multicastLock = wm.createMulticastLock("didcall");
-                multicastLock.setReferenceCounted(false);
-                multicastLock.acquire();
-            }
-        } catch (Exception ignored) {
-        }
-
-        store.setKeepMinutes(keepMinutes());
-        server = new CallServer(this);
-        server.start();
-        render();
-        refreshAddress();
-        imageFrame.post(this::reloadImages); // 크기가 정해진 뒤에 이미지 로드
-        ui.postDelayed(tickRunnable, 10_000);
+        host = prefs.getString(K_HOST, "");
+        startSearch();
     }
 
     @Override
     protected void onResume() {
         super.onResume();
         hideSystemUi();
-        refreshAddress();
+        web.onResume();
+    }
+
+    @Override
+    protected void onPause() {
+        super.onPause();
+        web.onPause();
     }
 
     @Override
     protected void onDestroy() {
-        super.onDestroy();
         ui.removeCallbacksAndMessages(null);
-        decoder.shutdownNow();
-        if (server != null) server.stop();
-        if (tts != null) tts.shutdown();
-        if (fileTts != null) fileTts.shutdown();
-        voiceExec.shutdownNow();
-        if (multicastLock != null && multicastLock.isHeld()) multicastLock.release();
+        bg.shutdownNow();
+        web.destroy();
+        super.onDestroy();
     }
 
-    // ───────────────────────── 화면 구성 ─────────────────────────
+    // ───────────────────────── 화면 ─────────────────────────
+    @SuppressLint("SetJavaScriptEnabled")
     private void buildUi() {
         FrameLayout root = new FrameLayout(this);
         root.setBackgroundColor(Ui.BG);
 
-        LinearLayout content = new LinearLayout(this);
-        content.setOrientation(LinearLayout.VERTICAL);
-        int pad = (int) (screenH * 0.03f);
-        content.setPadding(pad, pad, pad, pad);
-        root.addView(content, new FrameLayout.LayoutParams(-1, -1));
+        web = new WebView(this);
+        web.setBackgroundColor(Ui.BG);
+        WebSettings s = web.getSettings();
+        s.setJavaScriptEnabled(true);
+        s.setDomStorageEnabled(true);
+        s.setMediaPlaybackRequiresUserGesture(false); // 딩동·음성 자동 재생
+        s.setCacheMode(WebSettings.LOAD_NO_CACHE);
+        web.setWebViewClient(new WebViewClient());
+        web.setWebChromeClient(new WebChromeClient());
+        web.setFocusable(false);
+        web.setVisibility(View.INVISIBLE);
+        root.addView(web, new FrameLayout.LayoutParams(-1, -1));
 
-        LinearLayout main = new LinearLayout(this);
-        main.setOrientation(LinearLayout.HORIZONTAL);
-        content.addView(main, new LinearLayout.LayoutParams(-1, 0, 1f));
+        searchPane = new LinearLayout(this);
+        searchPane.setOrientation(LinearLayout.VERTICAL);
+        searchPane.setGravity(Gravity.CENTER);
+        searchPane.setBackgroundColor(Ui.BG);
+        int pad = screenH / 20;
+        searchPane.setPadding(pad, pad, pad, pad);
+        root.addView(searchPane, new FrameLayout.LayoutParams(-1, -1));
 
-        // ── 왼쪽: 이미지 ──
-        imageFrame = new FrameLayout(this);
-        imageFrame.setBackground(Ui.round(this, Color.BLACK, 24));
-        imageFrame.setClipToOutline(true);
-        LinearLayout.LayoutParams lpL = new LinearLayout.LayoutParams(0, -1, 0.80f);
-        lpL.rightMargin = pad;
-        main.addView(imageFrame, lpL);
+        searchTitle = px(Ui.text(this, "호출기를 찾는 중…", 0, Ui.YELLOW, true), 0.07f);
+        searchTitle.setGravity(Gravity.CENTER);
+        searchPane.addView(searchTitle);
 
-        imgA = new ImageView(this);
-        imgB = new ImageView(this);
-        imgB.setAlpha(0f);
-        imageFrame.addView(imgA, new FrameLayout.LayoutParams(-1, -1));
-        imageFrame.addView(imgB, new FrameLayout.LayoutParams(-1, -1));
-        applyScaleType();
+        searchMsg = px(Ui.text(this, "", 0, Ui.TEXT, false), 0.035f);
+        searchMsg.setGravity(Gravity.CENTER);
+        searchMsg.setPadding(0, pad / 2, 0, pad / 2);
+        searchPane.addView(searchMsg);
 
-        placeholder = px(Ui.text(this,
-                "여기에 매장 이미지가 표시됩니다\n\n호출기 앱 ⚙ → TV 이미지 추가\n또는 휴대폰 브라우저에서 아래 주소로 접속",
-                0, Ui.MUTED, false), 0.04f);
-        placeholder.setGravity(Gravity.CENTER);
-        imageFrame.addView(placeholder, new FrameLayout.LayoutParams(-1, -1));
+        TextView hint = px(Ui.text(this,
+                "호출기 폰에서 DID 앱이 켜져 있고, 이 기기와 같은 와이파이(공유기)에 연결되어 있어야 합니다.\n"
+                        + "호출기 앱 상단에 표시된 주소를 '주소 직접 입력'으로 넣어도 됩니다.",
+                0, Ui.MUTED, false), 0.03f);
+        hint.setGravity(Gravity.CENTER);
+        searchPane.addView(hint);
 
-        // ── 오른쪽: 현재 번호 + 최근 호출 ──
-        right = new LinearLayout(this);
-        right.setOrientation(LinearLayout.VERTICAL);
-        right.setGravity(Gravity.CENTER_HORIZONTAL);
-        right.setBackground(Ui.round(this, Ui.PANEL, 24));
-        right.setPadding(pad / 2, pad, pad / 2, pad);
-        main.addView(right, new LinearLayout.LayoutParams(0, -1, 0.20f));
-        right.post(this::render); // 칸 너비가 정해진 뒤 글자 크기 다시 맞춤
-
-        TextView curLabel = px(Ui.text(this, "현재 호출", 0, Ui.MUTED, true), 0.036f);
-        curLabel.setGravity(Gravity.CENTER);
-        right.addView(curLabel);
-
-        curView = px(Ui.text(this, "", 0, Ui.YELLOW, true), 0.15f);
-        curView.setGravity(Gravity.CENTER);
-        curView.setSingleLine(true);
-        curView.setIncludeFontPadding(false);
-        right.addView(curView, new LinearLayout.LayoutParams(-1, -2));
-
-        View divider = new View(this);
-        divider.setBackgroundColor(Ui.KEY2);
-        LinearLayout.LayoutParams dLp = new LinearLayout.LayoutParams(-1, Math.max(2, screenH / 400));
-        dLp.setMargins(pad / 2, pad, pad / 2, pad / 2);
-        right.addView(divider, dLp);
-
-        TextView rTitle = px(Ui.text(this, "최근 호출", 0, Ui.MUTED, true), 0.033f);
-        rTitle.setGravity(Gravity.CENTER);
-        right.addView(rTitle);
-        for (int i = 0; i < historyViews.length; i++) {
-            TextView t = px(Ui.text(this, "", 0, Ui.TEXT, true), 0.075f);
-            t.setGravity(Gravity.CENTER);
-            t.setSingleLine(true);
-            right.addView(t, new LinearLayout.LayoutParams(-1, 0, 1f));
-            historyViews[i] = t;
-        }
-
-        // ── 하단: 연결 주소 ──
-        addrView = px(Ui.text(this, "", 0, Ui.MUTED, false), 0.026f);
-        addrView.setPadding(0, pad / 2, 0, 0);
-        content.addView(addrView);
-
-        // ── 호출 팝업 (평소엔 숨김) ──
-        overlay = new FrameLayout(this);
-        overlay.setBackgroundColor(0xB3000000);
-        overlay.setVisibility(View.GONE);
-        root.addView(overlay, new FrameLayout.LayoutParams(-1, -1));
-
-        card = new LinearLayout(this);
-        card.setOrientation(LinearLayout.VERTICAL);
-        card.setGravity(Gravity.CENTER);
-        card.setBackground(Ui.round(this, Ui.ACCENT, 40));
-        card.setPadding(pad * 2, pad, pad * 2, pad * 3 / 2);
-        card.setMinimumWidth((int) (screenW * 0.55f));
-        card.setElevation(Ui.dp(this, 16));
-        FrameLayout.LayoutParams cLp = new FrameLayout.LayoutParams(-2, -2, Gravity.CENTER);
-        overlay.addView(card, cLp);
-
-        popLabel = px(Ui.text(this, "호출 번호", 0, Color.WHITE, true), 0.06f);
-        popLabel.setGravity(Gravity.CENTER);
-        card.addView(popLabel);
-
-        popNumber = px(Ui.text(this, "", 0, Color.WHITE, true), 0.36f);
-        popNumber.setGravity(Gravity.CENTER);
-        popNumber.setSingleLine(true);
-        popNumber.setIncludeFontPadding(false);
-        card.addView(popNumber);
-
-        popSub = px(Ui.text(this, "", 0, Color.WHITE, false), 0.05f);
-        popSub.setGravity(Gravity.CENTER);
-        card.addView(popSub);
+        LinearLayout btns = new LinearLayout(this);
+        btns.setGravity(Gravity.CENTER);
+        btns.setPadding(0, pad, 0, 0);
+        searchPane.addView(btns);
+        retryBtn = Ui.button(this, "다시 찾기", Ui.ACCENT, 0);
+        retryBtn.setTextSize(TypedValue.COMPLEX_UNIT_PX, screenH * 0.035f);
+        retryBtn.setOnClickListener(v -> startSearch());
+        Button manual = Ui.button(this, "주소 직접 입력", Ui.KEY2, 0);
+        manual.setTextSize(TypedValue.COMPLEX_UNIT_PX, screenH * 0.035f);
+        manual.setOnClickListener(v -> showManualDialog());
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams((int) (screenH * 0.5f), (int) (screenH * 0.11f));
+        lp.setMargins(pad / 3, 0, pad / 3, 0);
+        btns.addView(retryBtn, lp);
+        btns.addView(manual, new LinearLayout.LayoutParams(lp));
 
         setContentView(root);
-        root.setFocusable(true);
-        root.requestFocus();
     }
 
-    /** TV 해상도와 상관없이 화면 높이 비율로 글자 크기 지정 */
     private TextView px(TextView t, float ratio) {
         t.setTextSize(TypedValue.COMPLEX_UNIT_PX, screenH * ratio);
         return t;
@@ -310,387 +187,134 @@ public class DisplayActivity extends Activity implements CallServer.Host {
                         | View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION);
     }
 
-    private void refreshAddress() {
-        String ip = Net.localIp();
-        addrView.setText("호출기 연결 주소  " + ip + ":" + Net.HTTP_PORT
-                + "   ·   휴대폰 브라우저 (호출·이미지)  http://" + ip + ":" + Net.HTTP_PORT
-                + "   ·   PC 브라우저 화면  http://" + ip + ":" + Net.HTTP_PORT + "/display");
-    }
+    // ───────────────────────── 호출기 찾기 / 연결 ─────────────────────────
+    private final Runnable retrySearch = this::startSearch;
 
-    private void render() {
-        String cur = store.current();
-        curView.setText(cur.isEmpty() ? "—" : cur);
-        fitText(curView, curView.getText().toString(), 0.15f);
-
-        List<String> hist = store.history();
-        for (int i = 0; i < historyViews.length; i++) {
-            String n = i < hist.size() ? hist.get(i) : "";
-            historyViews[i].setText(n);
-            historyViews[i].setAlpha(1f - i * 0.14f);
-            fitText(historyViews[i], n, 0.075f);
-        }
-    }
-
-    /** 오른쪽 칸 너비에 맞게 글자 크기 자동 조절 (3자리는 최대 크기, 4자리 이상은 줄여서 표시) */
-    private void fitText(TextView t, String s, float maxRatio) {
-        float size = screenH * maxRatio;
-        int avail = right.getWidth() - right.getPaddingLeft() - right.getPaddingRight();
-        if (avail <= 0) avail = (int) (screenW * 0.17f);
-        avail = (int) (avail * 0.94f);
-        Paint p = new Paint(t.getPaint());
-        p.setTextSize(size);
-        while (size > 8 && !s.isEmpty() && p.measureText(s) > avail) {
-            size *= 0.92f;
-            p.setTextSize(size);
-        }
-        t.setTextSize(TypedValue.COMPLEX_UNIT_PX, size);
-    }
-
-    // ───────────────────────── 이미지 슬라이드쇼 ─────────────────────────
-    private void reloadImages() {
-        slides = images.list();
-        slideIndex = -1;
-        nextSlide();
-    }
-
-    private void nextSlide() {
-        ui.removeCallbacks(slideRunnable);
-        if (slides.isEmpty()) {
-            placeholder.setVisibility(View.VISIBLE);
-            imgA.setImageDrawable(null);
-            imgB.setImageDrawable(null);
-            return;
-        }
-        placeholder.setVisibility(View.GONE);
-        slideIndex = (slideIndex + 1) % slides.size();
-        final File f = slides.get(slideIndex);
-        final int tw = imageFrame.getWidth() > 0 ? imageFrame.getWidth() : screenW;
-        final int th = imageFrame.getHeight() > 0 ? imageFrame.getHeight() : screenH;
-        try {
-            decoder.execute(() -> {
-                final Bitmap bm = decode(f, tw, th);
-                ui.post(() -> showBitmap(bm));
-            });
-        } catch (Exception ignored) {
-            // 화면 종료 중
-        }
-        if (slides.size() > 1) ui.postDelayed(slideRunnable, slideSeconds() * 1000L);
-    }
-
-    private void showBitmap(Bitmap bm) {
-        if (bm == null || isFinishing()) return;
-        final ImageView front = aFront ? imgA : imgB;
-        final ImageView back = aFront ? imgB : imgA;
-        back.setImageBitmap(bm);
-        back.animate().cancel();
-        front.animate().cancel();
-        back.setAlpha(0f);
-        back.animate().alpha(1f).setDuration(700).start();
-        front.animate().alpha(0f).setDuration(700).withEndAction(() -> front.setImageDrawable(null)).start();
-        aFront = !aFront;
-    }
-
-    /** 화면 크기에 맞춰 줄여서 읽기 (메모리 부족 방지) */
-    private static Bitmap decode(File f, int tw, int th) {
-        try {
-            BitmapFactory.Options o = new BitmapFactory.Options();
-            o.inJustDecodeBounds = true;
-            BitmapFactory.decodeFile(f.getAbsolutePath(), o);
-            if (o.outWidth <= 0) return null;
-            int sample = 1;
-            while (o.outWidth / (sample * 2) >= tw && o.outHeight / (sample * 2) >= th) sample *= 2;
-            BitmapFactory.Options d = new BitmapFactory.Options();
-            d.inSampleSize = sample;
-            return BitmapFactory.decodeFile(f.getAbsolutePath(), d);
-        } catch (Throwable t) {
-            return null;
-        }
-    }
-
-    private void applyScaleType() {
-        ImageView.ScaleType st = "cover".equals(fit()) ? ImageView.ScaleType.CENTER_CROP : ImageView.ScaleType.FIT_CENTER;
-        imgA.setScaleType(st);
-        imgB.setScaleType(st);
-    }
-
-    // ───────────────────────── 호출 팝업 ─────────────────────────
-    private void announce(String n) {
-        showPopup(n);
-        playChime();
-        ui.removeCallbacks(speakRunnable);
-        if (tts != null) tts.stop();
-        speakNumber = n;
-        if (repeat() > 0 && ttsReady) ui.postDelayed(speakRunnable, 1300);
-        // PC 브라우저 화면이 곧 요청할 음성 파일을 미리 만들어 둠
-        if (repeat() > 0) {
-            try { voiceExec.execute(() -> voiceFor(n)); } catch (Exception ignored) {}
-        }
-    }
-
-    // ───────────────────────── 브라우저용 음성 파일 ─────────────────────────
-    /** 안내 음성을 WAV 파일로 (이미 만든 문장은 재사용). 서버 스레드에서 호출되며 최대 8초 대기 */
-    @Override
-    public File voiceFor(String n) {
-        if (!fileTtsReady || fileTts == null) return null;
-        String text = ttsTemplate().replace("{n}", n);
-        String key = "v" + Integer.toHexString(text.hashCode()) + "_" + text.length();
-        File f = new File(voiceDir, key + ".wav");
-        if (f.length() > 44) return f;
-        CountDownLatch latch;
-        synchronized (pendingVoice) {
-            latch = pendingVoice.get(key);
-            if (latch == null) {
-                latch = new CountDownLatch(1);
-                pendingVoice.put(key, latch);
-                pruneVoices();
-                int r = fileTts.synthesizeToFile(text, new Bundle(), new File(voiceDir, key + ".tmp"), key);
-                if (r != TextToSpeech.SUCCESS) {
-                    pendingVoice.remove(key);
-                    return null;
+    private void startSearch() {
+        if (searching) return;
+        searching = true;
+        ui.removeCallbacks(watchdog);
+        ui.removeCallbacks(retrySearch);
+        searchPane.setVisibility(View.VISIBLE);
+        searchTitle.setText("호출기를 찾는 중…");
+        searchTitle.setTextColor(Ui.YELLOW);
+        retryBtn.setEnabled(false);
+        final String last = host;
+        bg.execute(() -> {
+            final String found = Discovery.find(last, m -> ui.post(() -> searchMsg.setText(m)));
+            ui.post(() -> {
+                searching = false;
+                retryBtn.setEnabled(true);
+                if (found != null) {
+                    connect(found);
+                } else {
+                    searchTitle.setText("호출기를 찾지 못했습니다");
+                    searchTitle.setTextColor(0xFFFF5A5A);
+                    searchMsg.setText("이 기기 주소: " + Net.localIp() + "   ·   20초 후 다시 찾습니다");
+                    retryBtn.requestFocus();
+                    ui.postDelayed(retrySearch, 20_000);
                 }
-            }
-        }
-        try { latch.await(8, TimeUnit.SECONDS); } catch (InterruptedException ignored) {}
-        return f.length() > 44 ? f : null;
-    }
-
-    private void finishVoice(String key, boolean ok) {
-        File tmp = new File(voiceDir, key + ".tmp");
-        if (ok && tmp.length() > 44) {
-            //noinspection ResultOfMethodCallIgnored
-            tmp.renameTo(new File(voiceDir, key + ".wav"));
-        } else {
-            //noinspection ResultOfMethodCallIgnored
-            tmp.delete();
-        }
-        CountDownLatch l = pendingVoice.remove(key);
-        if (l != null) l.countDown();
-    }
-
-    /** 음성 파일은 최근 60개만 보관 */
-    private void pruneVoices() {
-        File[] fs = voiceDir.listFiles((d, name) -> name.endsWith(".wav"));
-        if (fs == null || fs.length < 60) return;
-        Arrays.sort(fs, (a, b) -> Long.compare(a.lastModified(), b.lastModified()));
-        for (int i = 0; i < fs.length - 50; i++) {
-            //noinspection ResultOfMethodCallIgnored
-            fs[i].delete();
-        }
-    }
-
-    @Override public byte[] chimeWav() { return chimeWav; }
-
-    private static byte[] toWav(short[] pcm, int rate) {
-        int dataLen = pcm.length * 2;
-        ByteArrayOutputStream b = new ByteArrayOutputStream(44 + dataLen);
-        writeStr(b, "RIFF"); writeInt(b, 36 + dataLen); writeStr(b, "WAVE");
-        writeStr(b, "fmt "); writeInt(b, 16); writeShort(b, 1); writeShort(b, 1);
-        writeInt(b, rate); writeInt(b, rate * 2); writeShort(b, 2); writeShort(b, 16);
-        writeStr(b, "data"); writeInt(b, dataLen);
-        for (short v : pcm) writeShort(b, v);
-        return b.toByteArray();
-    }
-    private static void writeStr(ByteArrayOutputStream b, String s) { for (char c : s.toCharArray()) b.write(c); }
-    private static void writeInt(ByteArrayOutputStream b, int v) { b.write(v); b.write(v >> 8); b.write(v >> 16); b.write(v >> 24); }
-    private static void writeShort(ByteArrayOutputStream b, int v) { b.write(v); b.write(v >> 8); }
-
-    private void speak() {
-        int rep = repeat();
-        String text = ttsTemplate().replace("{n}", speakNumber);
-        for (int i = 0; i < rep; i++) {
-            tts.speak(text, i == 0 ? TextToSpeech.QUEUE_FLUSH : TextToSpeech.QUEUE_ADD, null, "call" + i);
-            if (i < rep - 1) tts.playSilentUtterance(800, TextToSpeech.QUEUE_ADD, "gap" + i);
-        }
-    }
-
-    private void showPopup(String n) {
-        popNumber.setText(n);
-        float ratio = n.length() <= 3 ? 0.36f : n.length() == 4 ? 0.30f : 0.24f;
-        popNumber.setTextSize(TypedValue.COMPLEX_UNIT_PX, screenH * ratio);
-        popSub.setText(subtitle());
-        popSub.setVisibility(subtitle().trim().isEmpty() ? View.GONE : View.VISIBLE);
-
-        ui.removeCallbacks(hideRunnable);
-        ui.removeCallbacks(flashRunnable);
-        overlay.animate().cancel();
-        card.animate().cancel();
-
-        overlay.setVisibility(View.VISIBLE);
-        overlay.setAlpha(0f);
-        overlay.animate().alpha(1f).setDuration(250).start();
-        card.setScaleX(0.5f);
-        card.setScaleY(0.5f);
-        card.animate().scaleX(1f).scaleY(1f).setDuration(450)
-                .setInterpolator(new OvershootInterpolator(1.6f)).start();
-
-        setCardColors(false);
-        flashLeft = 6;
-        ui.postDelayed(flashRunnable, 500);
-        ui.postDelayed(hideRunnable, popupSeconds() * 1000L);
-    }
-
-    private void flashStep() {
-        if (flashLeft <= 0) { setCardColors(false); return; }
-        setCardColors(flashLeft % 2 == 0);
-        flashLeft--;
-        ui.postDelayed(flashRunnable, 380);
-    }
-
-    private void setCardColors(boolean yellow) {
-        card.setBackground(Ui.round(this, yellow ? Ui.YELLOW : Ui.ACCENT, 40));
-        int fg = yellow ? Ui.BG : Color.WHITE;
-        popLabel.setTextColor(fg);
-        popNumber.setTextColor(fg);
-        popSub.setTextColor(fg);
-    }
-
-    private void hidePopup() {
-        ui.removeCallbacks(hideRunnable);
-        ui.removeCallbacks(flashRunnable);
-        if (overlay.getVisibility() != View.VISIBLE) return;
-        overlay.animate().cancel();
-        overlay.animate().alpha(0f).setDuration(350)
-                .withEndAction(() -> overlay.setVisibility(View.GONE)).start();
-    }
-
-    /** '딩-동' 효과음을 직접 합성 (외부 음원 파일 불필요) */
-    private static short[] buildChime() {
-        int sr = 22050;
-        double[] freqs = {659.25, 523.25}; // 미, 도
-        int len = (int) (sr * 0.6);
-        short[] buf = new short[len * 2];
-        for (int k = 0; k < 2; k++) {
-            for (int i = 0; i < len; i++) {
-                double t = (double) i / sr;
-                double env = Math.exp(-3.2 * t) * Math.min(1.0, i / 200.0);
-                double v = Math.sin(2 * Math.PI * freqs[k] * t) * 0.7
-                        + Math.sin(2 * Math.PI * freqs[k] * 2 * t) * 0.2
-                        + Math.sin(2 * Math.PI * freqs[k] * 3 * t) * 0.05;
-                buf[k * len + i] = (short) (v * env * 32767 * 0.75);
-            }
-        }
-        return buf;
-    }
-
-    @SuppressWarnings("deprecation")
-    private void playChime() {
-        try {
-            final AudioTrack at = new AudioTrack(AudioManager.STREAM_MUSIC, 22050,
-                    AudioFormat.CHANNEL_OUT_MONO, AudioFormat.ENCODING_PCM_16BIT,
-                    chimePcm.length * 2, AudioTrack.MODE_STATIC);
-            at.write(chimePcm, 0, chimePcm.length);
-            at.play();
-            ui.postDelayed(() -> {
-                try { at.stop(); } catch (Exception ignored) {}
-                at.release();
-            }, 1600);
-        } catch (Exception ignored) {
-        }
-    }
-
-    // ───────────────────────── 설정 ─────────────────────────
-    private String ttsTemplate() { return prefs.getString(K_TTS, DEF_TTS); }
-    private String subtitle() { return prefs.getString(K_SUB, DEF_SUB); }
-    private int repeat() { return prefs.getInt(K_REPEAT, 2); }
-    private int slideSeconds() { return prefs.getInt(K_SLIDE, 8); }
-    private int popupSeconds() { return prefs.getInt(K_POPUP, 10); }
-    private String fit() { return prefs.getString(K_FIT, "contain"); }
-    private int keepMinutes() { return prefs.getInt(K_KEEP, 5); }
-
-    private static int clampInt(String v, int def, int min, int max) {
-        try { return Math.max(min, Math.min(max, Integer.parseInt(v.trim()))); }
-        catch (Exception e) { return def; }
-    }
-
-    // ───────────────────────── CallServer.Host ─────────────────────────
-    @Override public CallStore store() { return store; }
-    @Override public ImageStore images() { return images; }
-
-    @Override
-    public void putConfig(JSONObject o) throws Exception {
-        o.put("tts", ttsTemplate());
-        o.put("sub", subtitle());
-        o.put("repeat", repeat());
-        o.put("slide", slideSeconds());
-        o.put("popup", popupSeconds());
-        o.put("fit", fit());
-        o.put("keep", keepMinutes());
-        o.put("voice", fileTtsReady);
-    }
-
-    @Override
-    public void applyConfig(Map<String, String> q) {
-        SharedPreferences.Editor e = prefs.edit();
-        if (q.containsKey("tts")) {
-            String t = q.get("tts").trim();
-            e.putString(K_TTS, t.isEmpty() ? DEF_TTS : t);
-        }
-        if (q.containsKey("sub")) e.putString(K_SUB, q.get("sub").trim());
-        if (q.containsKey("repeat")) e.putInt(K_REPEAT, clampInt(q.get("repeat"), repeat(), 0, 5));
-        if (q.containsKey("slide")) e.putInt(K_SLIDE, clampInt(q.get("slide"), slideSeconds(), 3, 300));
-        if (q.containsKey("popup")) e.putInt(K_POPUP, clampInt(q.get("popup"), popupSeconds(), 3, 60));
-        if (q.containsKey("fit")) e.putString(K_FIT, "cover".equals(q.get("fit")) ? "cover" : "contain");
-        if (q.containsKey("keep")) e.putInt(K_KEEP, clampInt(q.get("keep"), keepMinutes(), 0, 120));
-        e.apply();
-        store.setKeepMinutes(keepMinutes());
-    }
-
-    @Override
-    public void onChanged(final String event) {
-        ui.post(() -> {
-            switch (event) {
-                case "call":
-                case "recall":
-                    render();
-                    announce(store.current());
-                    break;
-                case "clear":
-                    render();
-                    hidePopup();
-                    break;
-                case "images":
-                    reloadImages();
-                    break;
-                case "config":
-                    render();
-                    applyScaleType();
-                    if (slides.size() > 1) {
-                        ui.removeCallbacks(slideRunnable);
-                        ui.postDelayed(slideRunnable, slideSeconds() * 1000L);
-                    }
-                    break;
-                default:
-                    render();
-            }
+            });
         });
+    }
+
+    private void connect(String h) {
+        ui.removeCallbacks(retrySearch);
+        ui.removeCallbacks(watchdog);
+        host = h;
+        fails = 0;
+        prefs.edit().putString(K_HOST, h).apply();
+        searchPane.setVisibility(View.GONE);
+        web.setVisibility(View.VISIBLE);
+        web.loadUrl("http://" + h + "/display?app=1");
+        ui.postDelayed(this::unlockAudio, 2500);
+        ui.postDelayed(watchdog, 10_000);
+    }
+
+    /** 일부 기기는 화면을 한 번 눌러야 소리가 켜지므로, 화면 가운데를 자동으로 한 번 누름 */
+    private void unlockAudio() {
+        long t = SystemClock.uptimeMillis();
+        float x = web.getWidth() / 2f, y = web.getHeight() / 2f;
+        MotionEvent down = MotionEvent.obtain(t, t, MotionEvent.ACTION_DOWN, x, y, 0);
+        MotionEvent up = MotionEvent.obtain(t, t + 50, MotionEvent.ACTION_UP, x, y, 0);
+        web.dispatchTouchEvent(down);
+        web.dispatchTouchEvent(up);
+        down.recycle();
+        up.recycle();
+    }
+
+    private void showManualDialog() {
+        final EditText et = new EditText(this);
+        et.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_VARIATION_URI);
+        et.setHint("예) 192.168.0.23");
+        et.setText(host.replace(":" + Net.HTTP_PORT, ""));
+        et.setTextColor(Color.WHITE);
+        new AlertDialog.Builder(this, android.R.style.Theme_Material_Dialog_Alert)
+                .setTitle("호출기 주소")
+                .setMessage("호출기 앱 상단에 표시된 주소를 입력하세요.")
+                .setView(et)
+                .setPositiveButton("연결", (d, w) -> {
+                    String h = et.getText().toString().trim().replace("http://", "");
+                    int slash = h.indexOf('/');
+                    if (slash >= 0) h = h.substring(0, slash);
+                    if (h.isEmpty()) return;
+                    if (!h.contains(":")) h = h + ":" + Net.HTTP_PORT;
+                    final String target = h;
+                    searchMsg.setText(target + " 확인 중…");
+                    bg.execute(() -> {
+                        boolean ok = Discovery.ping(target, 3000);
+                        ui.post(() -> {
+                            if (ok) connect(target);
+                            else searchMsg.setText(target + " 에 연결할 수 없습니다. 주소와 와이파이를 확인하세요");
+                        });
+                    });
+                })
+                .setNegativeButton("취소", null)
+                .show();
     }
 
     // ───────────────────────── 리모컨 ─────────────────────────
     @Override
     public boolean onKeyDown(int keyCode, KeyEvent event) {
-        if (keyCode == KeyEvent.KEYCODE_DPAD_CENTER || keyCode == KeyEvent.KEYCODE_ENTER) {
-            if (!store.current().isEmpty()) { // 리모컨 확인 버튼 = 재호출
-                store.recall();
-                announce(store.current());
-            }
+        boolean showing = searchPane.getVisibility() != View.VISIBLE;
+        if (showing && (keyCode == KeyEvent.KEYCODE_DPAD_CENTER || keyCode == KeyEvent.KEYCODE_ENTER)) {
+            final String h = host; // 리모컨 확인 버튼 = 재호출
+            bg.execute(() -> {
+                try {
+                    HttpURLConnection c = (HttpURLConnection) new URL("http://" + h + "/recall").openConnection();
+                    c.setConnectTimeout(2000);
+                    c.setReadTimeout(2000);
+                    c.getResponseCode();
+                    c.disconnect();
+                } catch (Exception ignored) {
+                }
+            });
             return true;
         }
-        if (keyCode == KeyEvent.KEYCODE_DPAD_RIGHT && !slides.isEmpty()) { nextSlide(); return true; }
+        if (showing && keyCode == KeyEvent.KEYCODE_DPAD_RIGHT) {
+            web.evaluateJavascript("window.next&&next()", null);
+            return true;
+        }
         return super.onKeyDown(keyCode, event);
     }
 
     @Override
     public void onBackPressed() {
-        if (overlay.getVisibility() == View.VISIBLE) { hidePopup(); return; }
         // 실수로 꺼지는 것을 막기 위해 확인 창 표시
         new AlertDialog.Builder(this, android.R.style.Theme_Material_Dialog_Alert)
-                .setTitle("DID 번호호출")
-                .setItems(new String[]{"계속 표시", "역할 다시 선택", "앱 종료"}, (d, which) -> {
+                .setTitle("DID 호출 화면")
+                .setItems(new String[]{"계속 표시", "호출기 다시 찾기", "호출기 주소 직접 입력", "역할 다시 선택", "앱 종료"}, (d, which) -> {
                     if (which == 1) {
+                        web.setVisibility(View.INVISIBLE);
+                        startSearch();
+                    } else if (which == 2) {
+                        searchPane.setVisibility(View.VISIBLE);
+                        showManualDialog();
+                    } else if (which == 3) {
                         prefs.edit().remove(MainActivity.KEY_MODE).apply();
                         startActivity(new Intent(this, MainActivity.class).putExtra(MainActivity.EXTRA_CHOOSE, true));
                         finish();
-                    } else if (which == 2) {
+                    } else if (which == 4) {
                         finish();
                     }
                 })

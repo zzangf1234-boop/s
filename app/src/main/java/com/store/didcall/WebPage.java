@@ -78,7 +78,7 @@ final class WebPage {
         " $('hist').textContent=(s.history||[]).slice(0,4).join(' · ');\n" +
         " if(!loaded){$('tts').value=s.tts;$('sub').value=s.sub;$('rep').value=s.repeat;$('slide').value=s.slide;$('popup').value=s.popup;$('fit').value=s.fit;$('keep').value=s.keep;loaded=true}\n" +
         "}\n" +
-        "function api(p){return fetch(p).then(function(r){return r.json()}).then(function(s){render(s);if(!s.ok)msg(s.error||'오류');return s}).catch(function(){msg('TV에 연결할 수 없습니다')})}\n" +
+        "function api(p){return fetch(p).then(function(r){return r.json()}).then(function(s){render(s);if(!s.ok)msg(s.error||'오류');return s}).catch(function(){msg('호출기에 연결할 수 없습니다')})}\n" +
         "function callNum(){if(!v){msg('번호를 입력하세요');return}var n=v;api('/call?n='+encodeURIComponent(n)).then(function(s){if(s&&s.ok){msg(n+'번 호출 완료');last=parseInt(n,10)||last;v='';show()}})}\n" +
         "function next(){v=String((last||parseInt($('cur').textContent,10)||0)+1);show()}\n" +
         "function saveCfg(){var q=['tts','sub'].map(function(i){return i+'='+encodeURIComponent($(i).value)});q.push('repeat='+$('rep').value,'slide='+$('slide').value,'popup='+$('popup').value,'keep='+$('keep').value,'fit='+$('fit').value);api('/config?'+q.join('&')).then(function(s){if(s&&s.ok)msg('설정 저장됨')})}\n" +

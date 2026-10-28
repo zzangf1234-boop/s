@@ -50,23 +50,24 @@ public class MainActivity extends Activity {
         sub.setPadding(0, Ui.dp(this, 8), 0, Ui.dp(this, 28));
         root.addView(sub);
 
-        Button tv = Ui.button(this, "📺  TV 화면 (호출 번호 표시)", Ui.ACCENT, 22);
-        tv.setOnClickListener(v -> choose(MODE_TV));
-        root.addView(tv, btnLp());
-
-        Button caller = Ui.button(this, "📱  호출기 (번호 보내기)", Ui.KEY2, 22);
+        Button caller = Ui.button(this, "📱  호출기 (호스트 · 번호 보내기)", Ui.ACCENT, 21);
         caller.setOnClickListener(v -> choose(MODE_CALLER));
         root.addView(caller, btnLp());
 
+        Button tv = Ui.button(this, "📺  TV 화면 (호출 번호 표시)", Ui.KEY2, 21);
+        tv.setOnClickListener(v -> choose(MODE_TV));
+        root.addView(tv, btnLp());
+
         TextView hint = Ui.text(this,
-                "TV에 연결된 안드로이드 기기 → TV 화면\n카운터의 공기계 → 호출기\n두 기기는 같은 와이파이(공유기)에 연결되어 있어야 합니다.",
+                "카운터의 공기계 → 호출기 (번호·이미지·설정을 관리하는 서버)\nTV에 연결된 안드로이드 기기 → TV 화면 (호출기를 자동으로 찾음)\n윈도우 PC는 브라우저로 화면을 띄울 수 있습니다.\n모든 기기는 같은 와이파이(공유기)에 연결되어 있어야 합니다.",
                 15, Ui.MUTED, false);
         hint.setGravity(Gravity.CENTER);
         hint.setPadding(0, Ui.dp(this, 28), 0, 0);
         root.addView(hint);
 
         setContentView(root);
-        tv.requestFocus(); // TV 리모컨으로 바로 선택 가능
+        // TV 리모컨으로 바로 선택 가능하도록 TV 기기에서는 'TV 화면'에 포커스
+        if (getPackageManager().hasSystemFeature("android.software.leanback")) tv.requestFocus(); else caller.requestFocus();
     }
 
     private LinearLayout.LayoutParams btnLp() {

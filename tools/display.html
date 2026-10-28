@@ -6,13 +6,13 @@
 *{box-sizing:border-box;margin:0;padding:0}
 html,body{height:100%;overflow:hidden;background:#111418;color:#f2f2f2;font-family:'Malgun Gothic','Apple SD Gothic Neo','Noto Sans KR',sans-serif}
 body.idle{cursor:none}
-.wrap{position:fixed;inset:0;padding:3vh;display:flex;flex-direction:column}
-.main{flex:1;display:flex;gap:3vh;min-height:0}
-.left{flex:8;position:relative;background:#000;border-radius:2.4vh;overflow:hidden;min-width:0}
-.left img{position:absolute;inset:0;width:100%;height:100%;object-fit:contain;opacity:0;transition:opacity .7s}
+.wrap{position:fixed;top:0;left:0;right:0;bottom:0;padding:3vh;display:flex;flex-direction:column}
+.main{flex:1;display:flex;min-height:0}
+.left{margin-right:3vh;flex:8;position:relative;background:#000;border-radius:2.4vh;overflow:hidden;min-width:0}
+.left img{position:absolute;top:0;left:0;right:0;bottom:0;width:100%;height:100%;object-fit:contain;opacity:0;transition:opacity .7s}
 .left.cover img{object-fit:cover}
 .left img.on{opacity:1}
-#ph{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;text-align:center;color:#9aa3ad;font-size:4vh;line-height:1.6;white-space:pre-line}
+#ph{position:absolute;top:0;left:0;right:0;bottom:0;display:flex;align-items:center;justify-content:center;text-align:center;color:#9aa3ad;font-size:4vh;line-height:1.6;white-space:pre-line}
 .right{flex:2;background:#1c2127;border-radius:2.4vh;padding:3vh 1.5vh;display:flex;flex-direction:column;align-items:center;min-width:0}
 .lbl{color:#9aa3ad;font-weight:700;font-size:3.5vh;white-space:nowrap}
 #cur{color:#ffcc33;font-weight:800;font-size:15vh;line-height:1.1;width:100%;text-align:center;white-space:nowrap;overflow:hidden}
@@ -21,7 +21,7 @@ body.idle{cursor:none}
 #hist div{flex:1;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:7.5vh;white-space:nowrap;overflow:hidden}
 .addr{color:#9aa3ad;font-size:2.3vh;padding-top:1.5vh;white-space:nowrap;overflow:hidden}
 .addr.bad{color:#ff5a5a}
-#ov{position:fixed;inset:0;background:rgba(0,0,0,.7);display:none;align-items:center;justify-content:center;opacity:0;transition:opacity .3s}
+#ov{position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,.7);display:none;align-items:center;justify-content:center;opacity:0;transition:opacity .3s}
 #ov.show{display:flex}
 #ov.vis{opacity:1}
 #card{min-width:55vw;max-width:94vw;background:#ff8a00;border-radius:4vh;padding:3vh 6vh 4.5vh;text-align:center;color:#fff;box-shadow:0 2vh 6vh rgba(0,0,0,.5)}
@@ -31,7 +31,8 @@ body.idle{cursor:none}
 #pl{font-size:6vh;font-weight:700}
 #pn{font-size:36vh;font-weight:800;line-height:1;white-space:nowrap}
 #ps{font-size:5vh}
-#start{position:fixed;inset:0;background:rgba(17,20,24,.94);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2vh;cursor:pointer;text-align:center}
+#start{position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(17,20,24,.94);display:flex;flex-direction:column;align-items:center;justify-content:center;cursor:pointer;text-align:center}
+#start span{margin-top:2vh}
 #start[hidden]{display:none}
 #start b{font-size:6vh;color:#ffcc33}
 #start span{font-size:3vh;color:#9aa3ad;line-height:1.6}
@@ -54,7 +55,7 @@ body.idle{cursor:none}
 <div id="ov"><div id="card"><div id="pl">호출 번호</div><div id="pn"></div><div id="ps"></div></div></div>
 <div id="start" hidden><b>화면을 클릭하면 시작합니다</b><span>소리(딩동·음성)를 켜고 전체화면으로 전환합니다.<br>윈도우 실행 파일(DID-Display.bat)로 열면 이 단계 없이 바로 시작됩니다.</span></div>
 <script>
-var S={},seq=null,imgs=[],imgKey='',idx=-1,front='ia',slideT=0,hideT=0,flashT=0,ac=null,voice=null,lastSlide=0,fails=0,speakT=0;
+var APP=/[?&]app=1/.test(location.search),S={},seq=null,imgs=[],imgKey='',idx=-1,front='ia',slideT=0,hideT=0,flashT=0,ac=null,voice=null,lastSlide=0,fails=0,speakT=0;
 function $(i){return document.getElementById(i)}
 
 // ── 소리 ──
@@ -90,7 +91,7 @@ function apply(s){
  if(prevSlide!==undefined&&prevSlide!==s.slide)schedule();
  if(s.images!==imgs.length)loadImages();
 }
-function poll(){fetch('/status',{cache:'no-store'}).then(function(r){return r.json()}).then(function(s){fails=0;$('addr').className='addr';$('addr').textContent='● 연결됨  '+location.host+'   ·   전체화면 F11   ·   팝업 닫기 Esc';apply(s)}).catch(function(){if(++fails>=3){$('addr').className='addr bad';$('addr').textContent='● TV 기기('+location.host+')에 연결할 수 없습니다. 안드로이드 기기의 DID 앱이 켜져 있는지 확인하세요'}}).then(function(){setTimeout(poll,1000)})}
+function poll(){fetch('/status?d=1',{cache:'no-store'}).then(function(r){return r.json()}).then(function(s){fails=0;$('addr').className='addr';$('addr').textContent='● 호출기 연결됨  '+location.host+(APP?'':'   ·   전체화면 F11   ·   팝업 닫기 Esc');apply(s)}).catch(function(){if(++fails>=3){$('addr').className='addr bad';$('addr').textContent='● 호출기('+location.host+')에 연결할 수 없습니다. 호출기 폰의 DID 앱과 와이파이를 확인하세요'}}).then(function(){setTimeout(poll,1000)})}
 
 // ── 팝업 ──
 function announce(n){
@@ -114,7 +115,7 @@ function next(){clearTimeout(slideT);if(!imgs.length)return;idx=(idx+1)%imgs.len
 function schedule(){clearTimeout(slideT);if(imgs.length>1)slideT=setTimeout(next,(S.slide||8)*1000)}
 
 // ── 시작 / 전체화면 / 커서 숨김 ──
-function start(){initAudio();$('start').hidden=true;var e=document.documentElement;if(e.requestFullscreen&&!document.fullscreenElement)e.requestFullscreen().catch(function(){});if('speechSynthesis' in window){var u=new SpeechSynthesisUtterance(' ');u.volume=0;speechSynthesis.speak(u)}}
+function start(){initAudio();$('start').hidden=true;var e=document.documentElement;try{if(!APP&&e.requestFullscreen&&!document.fullscreenElement){var fp=e.requestFullscreen();if(fp&&fp.catch)fp.catch(function(){})}}catch(x){}if('speechSynthesis' in window){var u=new SpeechSynthesisUtterance(' ');u.volume=0;speechSynthesis.speak(u)}}
 initAudio();
 setTimeout(function(){if(!ac||ac.state!=='running')$('start').hidden=false},300);
 $('start').onclick=start;

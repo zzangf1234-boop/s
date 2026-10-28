@@ -13,13 +13,13 @@ final class DisplayPage {
         "*{box-sizing:border-box;margin:0;padding:0}\n" +
         "html,body{height:100%;overflow:hidden;background:#111418;color:#f2f2f2;font-family:'Malgun Gothic','Apple SD Gothic Neo','Noto Sans KR',sans-serif}\n" +
         "body.idle{cursor:none}\n" +
-        ".wrap{position:fixed;inset:0;padding:3vh;display:flex;flex-direction:column}\n" +
-        ".main{flex:1;display:flex;gap:3vh;min-height:0}\n" +
-        ".left{flex:8;position:relative;background:#000;border-radius:2.4vh;overflow:hidden;min-width:0}\n" +
-        ".left img{position:absolute;inset:0;width:100%;height:100%;object-fit:contain;opacity:0;transition:opacity .7s}\n" +
+        ".wrap{position:fixed;top:0;left:0;right:0;bottom:0;padding:3vh;display:flex;flex-direction:column}\n" +
+        ".main{flex:1;display:flex;min-height:0}\n" +
+        ".left{margin-right:3vh;flex:8;position:relative;background:#000;border-radius:2.4vh;overflow:hidden;min-width:0}\n" +
+        ".left img{position:absolute;top:0;left:0;right:0;bottom:0;width:100%;height:100%;object-fit:contain;opacity:0;transition:opacity .7s}\n" +
         ".left.cover img{object-fit:cover}\n" +
         ".left img.on{opacity:1}\n" +
-        "#ph{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;text-align:center;color:#9aa3ad;font-size:4vh;line-height:1.6;white-space:pre-line}\n" +
+        "#ph{position:absolute;top:0;left:0;right:0;bottom:0;display:flex;align-items:center;justify-content:center;text-align:center;color:#9aa3ad;font-size:4vh;line-height:1.6;white-space:pre-line}\n" +
         ".right{flex:2;background:#1c2127;border-radius:2.4vh;padding:3vh 1.5vh;display:flex;flex-direction:column;align-items:center;min-width:0}\n" +
         ".lbl{color:#9aa3ad;font-weight:700;font-size:3.5vh;white-space:nowrap}\n" +
         "#cur{color:#ffcc33;font-weight:800;font-size:15vh;line-height:1.1;width:100%;text-align:center;white-space:nowrap;overflow:hidden}\n" +
@@ -28,7 +28,7 @@ final class DisplayPage {
         "#hist div{flex:1;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:7.5vh;white-space:nowrap;overflow:hidden}\n" +
         ".addr{color:#9aa3ad;font-size:2.3vh;padding-top:1.5vh;white-space:nowrap;overflow:hidden}\n" +
         ".addr.bad{color:#ff5a5a}\n" +
-        "#ov{position:fixed;inset:0;background:rgba(0,0,0,.7);display:none;align-items:center;justify-content:center;opacity:0;transition:opacity .3s}\n" +
+        "#ov{position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,.7);display:none;align-items:center;justify-content:center;opacity:0;transition:opacity .3s}\n" +
         "#ov.show{display:flex}\n" +
         "#ov.vis{opacity:1}\n" +
         "#card{min-width:55vw;max-width:94vw;background:#ff8a00;border-radius:4vh;padding:3vh 6vh 4.5vh;text-align:center;color:#fff;box-shadow:0 2vh 6vh rgba(0,0,0,.5)}\n" +
@@ -38,7 +38,8 @@ final class DisplayPage {
         "#pl{font-size:6vh;font-weight:700}\n" +
         "#pn{font-size:36vh;font-weight:800;line-height:1;white-space:nowrap}\n" +
         "#ps{font-size:5vh}\n" +
-        "#start{position:fixed;inset:0;background:rgba(17,20,24,.94);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2vh;cursor:pointer;text-align:center}\n" +
+        "#start{position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(17,20,24,.94);display:flex;flex-direction:column;align-items:center;justify-content:center;cursor:pointer;text-align:center}\n" +
+        "#start span{margin-top:2vh}\n" +
         "#start[hidden]{display:none}\n" +
         "#start b{font-size:6vh;color:#ffcc33}\n" +
         "#start span{font-size:3vh;color:#9aa3ad;line-height:1.6}\n" +
@@ -60,7 +61,7 @@ final class DisplayPage {
         "<div id=\"ov\"><div id=\"card\"><div id=\"pl\">호출 번호</div><div id=\"pn\"></div><div id=\"ps\"></div></div></div>\n" +
         "<div id=\"start\" hidden><b>화면을 클릭하면 시작합니다</b><span>소리(딩동·음성)를 켜고 전체화면으로 전환합니다.<br>윈도우 실행 파일(DID-Display.bat)로 열면 이 단계 없이 바로 시작됩니다.</span></div>\n" +
         "<script>\n" +
-        "var S={},seq=null,imgs=[],imgKey='',idx=-1,front='ia',slideT=0,hideT=0,flashT=0,ac=null,voice=null,lastSlide=0,fails=0,speakT=0;\n" +
+        "var APP=/[?&]app=1/.test(location.search),S={},seq=null,imgs=[],imgKey='',idx=-1,front='ia',slideT=0,hideT=0,flashT=0,ac=null,voice=null,lastSlide=0,fails=0,speakT=0;\n" +
         "function $(i){return document.getElementById(i)}\n" +
         "// ── 소리 ──\n" +
         "function initAudio(){try{ac=ac||new (window.AudioContext||window.webkitAudioContext)();if(ac.state!=='running')ac.resume()}catch(e){}}\n" +
@@ -93,7 +94,7 @@ final class DisplayPage {
         " if(prevSlide!==undefined&&prevSlide!==s.slide)schedule();\n" +
         " if(s.images!==imgs.length)loadImages();\n" +
         "}\n" +
-        "function poll(){fetch('/status',{cache:'no-store'}).then(function(r){return r.json()}).then(function(s){fails=0;$('addr').className='addr';$('addr').textContent='● 연결됨  '+location.host+'   ·   전체화면 F11   ·   팝업 닫기 Esc';apply(s)}).catch(function(){if(++fails>=3){$('addr').className='addr bad';$('addr').textContent='● TV 기기('+location.host+')에 연결할 수 없습니다. 안드로이드 기기의 DID 앱이 켜져 있는지 확인하세요'}}).then(function(){setTimeout(poll,1000)})}\n" +
+        "function poll(){fetch('/status?d=1',{cache:'no-store'}).then(function(r){return r.json()}).then(function(s){fails=0;$('addr').className='addr';$('addr').textContent='● 호출기 연결됨  '+location.host+(APP?'':'   ·   전체화면 F11   ·   팝업 닫기 Esc');apply(s)}).catch(function(){if(++fails>=3){$('addr').className='addr bad';$('addr').textContent='● 호출기('+location.host+')에 연결할 수 없습니다. 호출기 폰의 DID 앱과 와이파이를 확인하세요'}}).then(function(){setTimeout(poll,1000)})}\n" +
         "// ── 팝업 ──\n" +
         "function announce(n){\n" +
         " var c=$('card'),ov=$('ov');\n" +
@@ -114,7 +115,7 @@ final class DisplayPage {
         "function next(){clearTimeout(slideT);if(!imgs.length)return;idx=(idx+1)%imgs.length;var src='/img/'+imgs[idx],back=front==='ia'?'ib':'ia',pre=new Image();pre.onload=function(){$(back).src=src;$(back).classList.add('on');$(front).classList.remove('on');front=back};pre.src=src;schedule()}\n" +
         "function schedule(){clearTimeout(slideT);if(imgs.length>1)slideT=setTimeout(next,(S.slide||8)*1000)}\n" +
         "// ── 시작 / 전체화면 / 커서 숨김 ──\n" +
-        "function start(){initAudio();$('start').hidden=true;var e=document.documentElement;if(e.requestFullscreen&&!document.fullscreenElement)e.requestFullscreen().catch(function(){});if('speechSynthesis' in window){var u=new SpeechSynthesisUtterance(' ');u.volume=0;speechSynthesis.speak(u)}}\n" +
+        "function start(){initAudio();$('start').hidden=true;var e=document.documentElement;try{if(!APP&&e.requestFullscreen&&!document.fullscreenElement){var fp=e.requestFullscreen();if(fp&&fp.catch)fp.catch(function(){})}}catch(x){}if('speechSynthesis' in window){var u=new SpeechSynthesisUtterance(' ');u.volume=0;speechSynthesis.speak(u)}}\n" +
         "initAudio();\n" +
         "setTimeout(function(){if(!ac||ac.state!=='running')$('start').hidden=false},300);\n" +
         "$('start').onclick=start;\n" +
