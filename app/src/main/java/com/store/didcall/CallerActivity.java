@@ -21,6 +21,7 @@ import android.os.PowerManager;
 import android.provider.Settings;
 import android.view.Gravity;
 import android.view.HapticFeedbackConstants;
+import android.view.KeyEvent;
 import android.view.View;
 import android.view.WindowManager;
 import android.widget.Button;
@@ -180,6 +181,69 @@ public class CallerActivity extends Activity {
         LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(0, -1, 1f);
         lp.setMargins(Ui.dp(this, 4), 0, Ui.dp(this, 4), 0);
         row.addView(b, lp);
+    }
+
+    // ───────────────────────── 블루투스/USB 숫자 키패드 ─────────────────────────
+    private boolean keyboardHintShown;
+
+    /**
+     * 화면의 버튼보다 먼저 키 입력을 받아 처리 (Enter가 포커스된 버튼을 누르는 것 방지).
+     *  숫자 = 입력, Enter = 호출, Backspace = 한 칸 지우기, Esc·Del·- = 전체 지우기,
+     *  + = 다음 번호, * = 재호출, / = 화면 비우기
+     */
+    @Override
+    public boolean dispatchKeyEvent(KeyEvent e) {
+        int code = e.getKeyCode();
+        String action = keyAction(code, e);
+        if (action == null) return super.dispatchKeyEvent(e);
+        if (e.getAction() != KeyEvent.ACTION_DOWN) return true;
+        boolean repeat = e.getRepeatCount() > 0;
+        if (!keyboardHintShown) {
+            keyboardHintShown = true;
+            msg("⌨ 키패드: Enter 호출 · + 다음 번호 · * 재호출 · / 화면 비우기 · Esc 지우기");
+        }
+        switch (action) {
+            case "call": if (!repeat) sendCall(); break;
+            case "back": key("←"); break;
+            case "clear": key("C"); break;
+            case "next": if (!repeat) { input = String.valueOf(lastSent + 1); showInput(); } break;
+            case "recall": if (!repeat) request("/recall", "재호출했습니다"); break;
+            case "blank": if (!repeat) request("/clear", "TV 화면을 비웠습니다"); break;
+            default: if (!repeat) key(action); // 숫자
+        }
+        return true;
+    }
+
+    private static String keyAction(int code, KeyEvent e) {
+        if (code >= KeyEvent.KEYCODE_0 && code <= KeyEvent.KEYCODE_9) return String.valueOf(code - KeyEvent.KEYCODE_0);
+        if (code >= KeyEvent.KEYCODE_NUMPAD_0 && code <= KeyEvent.KEYCODE_NUMPAD_9) return String.valueOf(code - KeyEvent.KEYCODE_NUMPAD_0);
+        switch (code) {
+            case KeyEvent.KEYCODE_ENTER:
+            case KeyEvent.KEYCODE_NUMPAD_ENTER:
+                return "call";
+            case KeyEvent.KEYCODE_DEL:            // Backspace
+                return "back";
+            case KeyEvent.KEYCODE_ESCAPE:
+            case KeyEvent.KEYCODE_FORWARD_DEL:
+            case KeyEvent.KEYCODE_NUMPAD_DOT:
+            case KeyEvent.KEYCODE_NUMPAD_SUBTRACT:
+            case KeyEvent.KEYCODE_MINUS:
+            case KeyEvent.KEYCODE_CLEAR:
+                return "clear";
+            case KeyEvent.KEYCODE_NUMPAD_ADD:
+            case KeyEvent.KEYCODE_PLUS:
+                return "next";
+            case KeyEvent.KEYCODE_NUMPAD_MULTIPLY:
+            case KeyEvent.KEYCODE_STAR:
+                return "recall";
+            case KeyEvent.KEYCODE_NUMPAD_DIVIDE:
+            case KeyEvent.KEYCODE_SLASH:
+                return "blank";
+            case KeyEvent.KEYCODE_EQUALS:         // 일반 키보드의 '+' 키 (Shift 없이)
+                return e.isShiftPressed() ? "next" : null;
+            default:
+                return null;
+        }
     }
 
     private void tap(View v) {
