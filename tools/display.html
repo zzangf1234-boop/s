@@ -31,23 +31,25 @@ body.calm #hist div:nth-child(2){opacity:.86}body.calm #hist div:nth-child(3){op
 #dot.ok{background:#4cd964}
 #dot.bad{background:#ff5a5a;animation:blink 1s infinite}
 @keyframes blink{50%{opacity:.2}}
-/* ── 세로 화면: 위 이미지, 아래 현재 호출 | 최근 호출(2열) ── */
+/* ── 세로 화면: 위 이미지 / 아래 칸 = 현재 호출 → 구분선 → 최근 호출(한 줄에 2개) ── */
 @media (orientation:portrait){
  .main{flex-direction:column}
- .left{margin-right:0;margin-bottom:1vh;flex:70}
- .right{flex:30;flex-direction:row;align-items:stretch;padding:1.5vh 1.5vw}
+ .left{margin-right:0;margin-bottom:1vh;flex:64}
+ .right{flex:36;padding:1.6vh 3vw}
  .sec{justify-content:center}
- #secCur{flex:42}
- #secHist{flex:58;border-top:0;margin-top:0;padding-top:0;border-left:.3vh solid var(--line);margin-left:1.5vw;padding-left:1.5vw}
- .lbl{font-size:2.4vh}
- #cur{font-size:12vh}
+ #secCur{flex:40}
+ #secHist{flex:60;margin-top:1vh;padding-top:1vh}
+ .lbl{font-size:2.3vh}
+ #cur{font-size:10vh}
  #hist{display:grid;grid-template-columns:1fr 1fr;grid-auto-rows:1fr}
  #hist div{font-size:5vh}
- #hist div:nth-child(n+6){display:flex}
+ #hist div:nth-child(n+5){display:none}
  /* 세로 팝업: 가로 화면 팝업과 비슷한 실제 크기 */
  #card{min-width:56vw!important;max-width:80vw!important;padding:1.4vh 3vw 2vh!important;border-radius:1.8vh!important}
  #pl{font-size:2.6vh!important}
  #ps{font-size:2.2vh!important}
+ #start b{font-size:3.6vh}
+ #start span{font-size:2vh}
 }
 /* ── 호출 팝업 ── */
 #ov{position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,.7);display:none;align-items:center;justify-content:center;opacity:0;transition:opacity .3s;z-index:20}
@@ -140,7 +142,7 @@ function portrait(){return window.innerHeight>window.innerWidth}
 // ── 상태 반영 ──
 function render(s){
  document.body.classList.toggle('calm',s.theme==='calm');
- $('cur').textContent=s.current||'—';fit($('cur'),portrait()?12:13);
+ $('cur').textContent=s.current||'—';fit($('cur'),portrait()?10:13);
  var h=s.history||[],d=$('hist').children;
  for(var i=0;i<d.length;i++){d[i].textContent=h[i]||'';fit(d[i],portrait()?5:6.5)}
  $('left').classList.toggle('cover',s.fit==='cover');

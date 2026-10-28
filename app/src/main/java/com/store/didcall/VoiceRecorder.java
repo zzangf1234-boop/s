@@ -85,13 +85,14 @@ final class VoiceRecorder {
         for (Clip c : list) items.add((has(c.key) ? "✔ " : "○ ") + c.title + (c.key.length() == 2 ? "" : "  —  " + shorten(c.say)));
         items.add("🗑 녹음 모두 지우기");
         final int base = 2;
+        final int doneN = done, needN = need;
         final boolean ready = done == need;
         new AlertDialog.Builder(a, android.R.style.Theme_Material_Dialog_Alert)
                 .setTitle("내 목소리 녹음 (" + done + "/" + need + ")" + (ready ? " — 준비 완료" : ""))
                 .setItems(items.toArray(new String[0]), (d, which) -> {
                     if (which == 0) {
                         if (!recMode && !ready) {
-                            host.msg("먼저 숫자와 '번호 뒤 문장'을 모두 녹음해 주세요 (" + done + "/" + need + ")");
+                            host.msg("먼저 숫자와 '번호 뒤 문장'을 모두 녹음해 주세요 (" + doneN + "/" + needN + ")");
                             showList(template, closeMsg, false);
                             return;
                         }

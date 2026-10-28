@@ -38,23 +38,25 @@ final class DisplayPage {
         "#dot.ok{background:#4cd964}\n" +
         "#dot.bad{background:#ff5a5a;animation:blink 1s infinite}\n" +
         "@keyframes blink{50%{opacity:.2}}\n" +
-        "/* ── 세로 화면: 위 이미지, 아래 현재 호출 | 최근 호출(2열) ── */\n" +
+        "/* ── 세로 화면: 위 이미지 / 아래 칸 = 현재 호출 → 구분선 → 최근 호출(한 줄에 2개) ── */\n" +
         "@media (orientation:portrait){\n" +
         " .main{flex-direction:column}\n" +
-        " .left{margin-right:0;margin-bottom:1vh;flex:70}\n" +
-        " .right{flex:30;flex-direction:row;align-items:stretch;padding:1.5vh 1.5vw}\n" +
+        " .left{margin-right:0;margin-bottom:1vh;flex:64}\n" +
+        " .right{flex:36;padding:1.6vh 3vw}\n" +
         " .sec{justify-content:center}\n" +
-        " #secCur{flex:42}\n" +
-        " #secHist{flex:58;border-top:0;margin-top:0;padding-top:0;border-left:.3vh solid var(--line);margin-left:1.5vw;padding-left:1.5vw}\n" +
-        " .lbl{font-size:2.4vh}\n" +
-        " #cur{font-size:12vh}\n" +
+        " #secCur{flex:40}\n" +
+        " #secHist{flex:60;margin-top:1vh;padding-top:1vh}\n" +
+        " .lbl{font-size:2.3vh}\n" +
+        " #cur{font-size:10vh}\n" +
         " #hist{display:grid;grid-template-columns:1fr 1fr;grid-auto-rows:1fr}\n" +
         " #hist div{font-size:5vh}\n" +
-        " #hist div:nth-child(n+6){display:flex}\n" +
+        " #hist div:nth-child(n+5){display:none}\n" +
         " /* 세로 팝업: 가로 화면 팝업과 비슷한 실제 크기 */\n" +
         " #card{min-width:56vw!important;max-width:80vw!important;padding:1.4vh 3vw 2vh!important;border-radius:1.8vh!important}\n" +
         " #pl{font-size:2.6vh!important}\n" +
         " #ps{font-size:2.2vh!important}\n" +
+        " #start b{font-size:3.6vh}\n" +
+        " #start span{font-size:2vh}\n" +
         "}\n" +
         "/* ── 호출 팝업 ── */\n" +
         "#ov{position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,.7);display:none;align-items:center;justify-content:center;opacity:0;transition:opacity .3s;z-index:20}\n" +
@@ -143,7 +145,7 @@ final class DisplayPage {
         "// ── 상태 반영 ──\n" +
         "function render(s){\n" +
         " document.body.classList.toggle('calm',s.theme==='calm');\n" +
-        " $('cur').textContent=s.current||'—';fit($('cur'),portrait()?12:13);\n" +
+        " $('cur').textContent=s.current||'—';fit($('cur'),portrait()?10:13);\n" +
         " var h=s.history||[],d=$('hist').children;\n" +
         " for(var i=0;i<d.length;i++){d[i].textContent=h[i]||'';fit(d[i],portrait()?5:6.5)}\n" +
         " $('left').classList.toggle('cover',s.fit==='cover');\n" +
@@ -157,10 +159,10 @@ final class DisplayPage {
         " if(seq===null){seq=s.seq}else if(s.seq!==seq){seq=s.seq;if(s.current)announce(s.current)}\n" +
         " if(closeSeq===null){closeSeq=s.closeSeq}else if(s.closeSeq!==closeSeq){closeSeq=s.closeSeq;if(s.closed)announceClosing()}\n" +
         " if(!s.current)hidePopup();\n" +
-        " if(prevSlide!==undefined&&prevSlide!==s.slide)schedule();\n";
-    private static final String P1 =
+        " if(prevSlide!==undefined&&prevSlide!==s.slide)schedule();\n" +
         " if(s.mediaVer!==mediaVer){mediaVer=s.mediaVer;loadMedia()}\n" +
-        "}\n" +
+        "}\n";
+    private static final String P1 =
         "function poll(){fetch('/status?d=1',{cache:'no-store'}).then(function(r){return r.json()}).then(function(s){fails=0;$('dot').className='ok';apply(s)}).catch(function(){if(++fails>=3){$('dot').className='bad'}}).then(function(){setTimeout(poll,1000)})}\n" +
         "// ── 호출 팝업 ──\n" +
         "function announce(n){\n" +
@@ -234,5 +236,5 @@ final class DisplayPage {
         "})();\n" +
         "</script></body></html>\n";
 
-    static final String HTML = new StringBuilder(18441).append(P0).append(P1).toString();
+    static final String HTML = new StringBuilder(18390).append(P0).append(P1).toString();
 }
