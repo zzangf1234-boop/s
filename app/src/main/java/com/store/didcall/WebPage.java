@@ -87,9 +87,11 @@ final class WebPage {
         "function resize(file){return new Promise(function(res,rej){var img=new Image();img.onload=function(){var m=1920,w=img.naturalWidth,h=img.naturalHeight,s=Math.min(1,m/Math.max(w,h));var c=document.createElement('canvas');c.width=Math.round(w*s);c.height=Math.round(h*s);var x=c.getContext('2d');x.fillStyle='#fff';x.fillRect(0,0,c.width,c.height);x.drawImage(img,0,0,c.width,c.height);URL.revokeObjectURL(img.src);c.toBlob(function(b){b?res(b):rej()},'image/jpeg',0.88)};img.onerror=function(){rej()};img.src=URL.createObjectURL(file)})}\n" +
         "async function upload(files){var ok=0,err='';for(var i=0;i<files.length;i++){msg('이미지 보내는 중… '+(i+1)+'/'+files.length);try{var b=await resize(files[i]);var r=await fetch('/image',{method:'POST',headers:{'Content-Type':'image/jpeg'},body:b});var s=await r.json();if(s.ok)ok++;else err=s.error}catch(e){err='보내기 실패'}}msg(err?('이미지 '+ok+'장 추가 · 실패: '+err):('✔ 이미지 '+ok+'장 추가됨'));loadThumbs()}\n" +
         "$('imgbox').addEventListener('toggle',function(){if(this.open)loadThumbs()});\n" +
-        "// 블루투스/USB 숫자 키패드: 숫자 입력, Enter 호출, Backspace 지우기, Esc·- 전체 지우기, + 다음, * 재호출, / 화면 비우기\n" +
-        "document.addEventListener('keydown',function(e){var t=e.target.tagName;if(t==='INPUT'||t==='SELECT'||t==='TEXTAREA'||e.ctrlKey||e.altKey||e.metaKey)return;var k=e.key,h=true;\n" +
-        " if(/^[0-9]$/.test(k)){if(!e.repeat)window.k(k)}else if(k==='Enter'){if(!e.repeat)callNum()}else if(k==='Backspace'){del()}else if(k==='Escape'||k==='-'||k==='Delete'||k==='.'||k==='Clear'){v='';show()}\n" +
+        "// 텐키(숫자 키패드): 숫자 입력, Enter 호출, . 한 칸 지우기, - 전체 삭제, + 다음 번호, * 재호출, / 화면 비우기\n" +
+        "var NUMPAD={Numpad0:'0',Numpad1:'1',Numpad2:'2',Numpad3:'3',Numpad4:'4',Numpad5:'5',Numpad6:'6',Numpad7:'7',Numpad8:'8',Numpad9:'9',NumpadEnter:'Enter',NumpadAdd:'+',NumpadSubtract:'-',NumpadMultiply:'*',NumpadDivide:'/',NumpadDecimal:'.',NumpadComma:'.'};\n" +
+        "document.addEventListener('keydown',function(e){var t=e.target.tagName;if(t==='INPUT'||t==='SELECT'||t==='TEXTAREA'||e.ctrlKey||e.altKey||e.metaKey)return;\n" +
+        " var k=NUMPAD[e.code]||e.key,h=true; // 텐키는 NumLock 상태와 상관없이 키 위치(code)로 판단\n" +
+        " if(/^[0-9]$/.test(k)){if(!e.repeat)window.k(k)}else if(k==='Enter'){if(!e.repeat)callNum()}else if(k==='.'||k===','||k==='Delete'||k==='Backspace'){del()}else if(k==='-'||k==='Escape'){v='';show()}\n" +
         " else if(k==='+'){if(!e.repeat)next()}else if(k==='*'){if(!e.repeat)api('/recall').then(function(s){if(s&&s.ok)msg('재호출했습니다')})}else if(k==='/'){if(!e.repeat)api('/clear').then(function(s){if(s&&s.ok)msg('화면을 비웠습니다')})}else h=false;\n" +
         " if(h){e.preventDefault();if(document.activeElement&&document.activeElement.blur)document.activeElement.blur()}});\n" +
         "$('dispurl').textContent='http://'+location.host+'/display';\n" +

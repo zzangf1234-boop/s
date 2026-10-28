@@ -188,7 +188,7 @@ public class CallerActivity extends Activity {
 
     /**
      * 화면의 버튼보다 먼저 키 입력을 받아 처리 (Enter가 포커스된 버튼을 누르는 것 방지).
-     *  숫자 = 입력, Enter = 호출, Backspace = 한 칸 지우기, Esc·Del·- = 전체 지우기,
+     *  (텐키 기준) 숫자 = 입력, Enter = 호출, . = 한 칸 지우기, - = 전체 지우기,
      *  + = 다음 번호, * = 재호출, / = 화면 비우기
      */
     @Override
@@ -200,7 +200,7 @@ public class CallerActivity extends Activity {
         boolean repeat = e.getRepeatCount() > 0;
         if (!keyboardHintShown) {
             keyboardHintShown = true;
-            msg("⌨ 키패드: Enter 호출 · + 다음 번호 · * 재호출 · / 화면 비우기 · Esc 지우기");
+            msg("⌨ 텐키: Enter 호출 · + 다음 번호 · * 재호출 · / 화면 비우기 · . 한 칸 지우기 · - 전체 삭제");
         }
         switch (action) {
             case "call": if (!repeat) sendCall(); break;
@@ -215,18 +215,42 @@ public class CallerActivity extends Activity {
     }
 
     private static String keyAction(int code, KeyEvent e) {
+        // 텐키는 NumLock이 꺼져 있으면 화살표·End 등으로 들어오므로, 물리 키 위치(스캔 코드)로 먼저 판단
+        switch (e.getScanCode()) {
+            case 82: return "0";
+            case 79: return "1";
+            case 80: return "2";
+            case 81: return "3";
+            case 75: return "4";
+            case 76: return "5";
+            case 77: return "6";
+            case 71: return "7";
+            case 72: return "8";
+            case 73: return "9";
+            case 96: return "call";    // 텐키 Enter
+            case 78: return "next";    // +
+            case 55: return "recall";  // *
+            case 74: return "clear";   // -
+            case 98: return "blank";   // /
+            case 83:                   // .
+            case 121: return "back";   // , (일부 텐키)
+            default: break;
+        }
         if (code >= KeyEvent.KEYCODE_0 && code <= KeyEvent.KEYCODE_9) return String.valueOf(code - KeyEvent.KEYCODE_0);
         if (code >= KeyEvent.KEYCODE_NUMPAD_0 && code <= KeyEvent.KEYCODE_NUMPAD_9) return String.valueOf(code - KeyEvent.KEYCODE_NUMPAD_0);
         switch (code) {
             case KeyEvent.KEYCODE_ENTER:
             case KeyEvent.KEYCODE_NUMPAD_ENTER:
                 return "call";
-            case KeyEvent.KEYCODE_DEL:            // Backspace
+            case KeyEvent.KEYCODE_NUMPAD_DOT:     // 텐키 . = 한 칸 지우기
+            case KeyEvent.KEYCODE_PERIOD:
+            case KeyEvent.KEYCODE_NUMPAD_COMMA:   // 일부 텐키는 . 자리에 , 가 있음
+            case KeyEvent.KEYCODE_COMMA:
+            case KeyEvent.KEYCODE_FORWARD_DEL:    // NumLock 꺼진 상태의 . 키
+            case KeyEvent.KEYCODE_DEL:            // 일반 키보드 Backspace
                 return "back";
+            case KeyEvent.KEYCODE_NUMPAD_SUBTRACT: // 텐키 - = 전체 삭제
             case KeyEvent.KEYCODE_ESCAPE:
-            case KeyEvent.KEYCODE_FORWARD_DEL:
-            case KeyEvent.KEYCODE_NUMPAD_DOT:
-            case KeyEvent.KEYCODE_NUMPAD_SUBTRACT:
             case KeyEvent.KEYCODE_MINUS:
             case KeyEvent.KEYCODE_CLEAR:
                 return "clear";
