@@ -210,7 +210,7 @@ public class HostService extends Service implements CallServer.Host {
         o.put("fit", fit());
         o.put("keep", keepMinutes());
         o.put("voice", fileTtsReady);
-        o.put("keypad", prefs.getString(K_KEYPAD, "tenkey"));
+        o.put("keys", KeyMap.current(prefs));
     }
 
     @Override
@@ -226,7 +226,10 @@ public class HostService extends Service implements CallServer.Host {
         if (q.containsKey("popup")) e.putInt(K_POPUP, clampInt(q.get("popup"), popupSeconds(), 3, 60));
         if (q.containsKey("fit")) e.putString(K_FIT, "cover".equals(q.get("fit")) ? "cover" : "contain");
         if (q.containsKey("keep")) e.putInt(K_KEEP, clampInt(q.get("keep"), keepMinutes(), 0, 120));
-        if (q.containsKey("keypad")) e.putString(K_KEYPAD, "backspace".equals(q.get("keypad")) ? "backspace" : "tenkey");
+        if (q.containsKey("keys")) {
+            String k = KeyMap.sanitize(q.get("keys"));
+            if (k != null) e.putString(KeyMap.K_KEYS, k);
+        }
         e.apply();
         store.setKeepMinutes(keepMinutes());
     }

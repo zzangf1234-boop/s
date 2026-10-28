@@ -32,6 +32,14 @@ final class WebPage {
         ".thumb button{position:absolute;top:3px;right:3px;width:28px;height:28px;padding:0;font-size:16px;border-radius:50%;background:rgba(0,0,0,.7);margin:0}\n" +
         ".up{display:block;text-align:center;background:#ff8a00;color:#fff;font-weight:700;font-size:16px;padding:12px;border-radius:14px;cursor:pointer}\n" +
         ".empty{grid-column:1/-1;text-align:center;padding:14px 0}\n" +
+        ".krow{display:grid;grid-template-columns:1fr auto;gap:4px 8px;align-items:center;padding:8px 0;border-top:1px solid #2a3038}\n" +
+        ".kname{color:#f2f2f2;font-weight:700;font-size:15px}\n" +
+        ".kchips{grid-column:1/2;display:flex;flex-wrap:wrap;gap:4px}\n" +
+        ".chip{background:#262b31;color:#ffcc33;border-radius:6px;padding:3px 6px;font-size:13px}\n" +
+        ".chip b{color:#9aa3ad;cursor:pointer;margin-left:2px}\n" +
+        ".none{font-size:13px}\n" +
+        "details .kset{grid-row:1/3;grid-column:2;width:auto;font-size:14px;padding:10px 12px;margin:0}\n" +
+        "details .kset.on{background:#ff8a00}\n" +
         "</style></head><body>\n" +
         "<div class=\"now\"><span>현재 호출 <b id=\"cur\">-</b></span><span id=\"hist\"></span></div>\n" +
         "<div id=\"disp\"></div>\n" +
@@ -58,8 +66,13 @@ final class WebPage {
         "음성 반복 횟수 (0~5, 0이면 딩동만)<input id=\"rep\" type=\"number\" min=\"0\" max=\"5\">\n" +
         "팝업 표시 시간 (초)<input id=\"popup\" type=\"number\" min=\"3\" max=\"60\">\n" +
         "최근 호출 표시 시간 (분, 0이면 계속 표시)<input id=\"keep\" type=\"number\" min=\"0\" max=\"120\">\n" +
-        "키패드 종류<select id=\"keypad\"><option value=\"tenkey\">텐키형 (. 한 칸 지우기 · - 전체 삭제)</option><option value=\"backspace\">백스페이스형 (← 한 칸 지우기 · . - 전체 삭제)</option></select>\n" +
         "<button onclick=\"saveCfg()\">저장</button>\n" +
+        "</details>\n" +
+        "<details id=\"keybox\"><summary>키 설정 (키패드·키보드)</summary>\n" +
+        "<p style=\"margin:10px 0;line-height:1.6\">[키 지정]을 누른 뒤 키보드·키패드에서 원하는 키를 누르세요. 숫자 키는 항상 번호 입력입니다. 호출기 앱과 같은 설정을 사용합니다.</p>\n" +
+        "<div id=\"keyrows\"></div>\n" +
+        "<button onclick=\"presetKeys(KEY_TENKEY)\">텐키형 기본값 (. 한 칸 지우기)</button>\n" +
+        "<button onclick=\"presetKeys(KEY_BACKSPACE)\">백스페이스형 기본값 (← 한 칸 지우기)</button>\n" +
         "</details>\n" +
         "<details><summary>PC 브라우저를 호출 화면으로 쓰기</summary>\n" +
         "<p style=\"margin:10px 0;line-height:1.6\">TV에 연결된 윈도우 PC의 크롬·엣지에서 아래 주소를 열면 TV와 같은 호출 화면이 나옵니다.<br><b id=\"dispurl\" style=\"color:#ffcc33\"></b></p>\n" +
@@ -75,28 +88,52 @@ final class WebPage {
         "function del(){v=v.slice(0,-1);show()}\n" +
         "function msg(t){$('msg').textContent=t}\n" +
         "function render(s){\n" +
-        " S=s;\n" +
+        " S=s;if(!capturing&&s.keys&&s.keys!==keysStr){keysStr=s.keys;KM=parseKeys(s.keys);renderKeys()}\n" +
         " $('cur').textContent=s.current||'-';\n" +
         " $('hist').textContent=(s.history||[]).slice(0,4).join(' · ');\n" +
-        " if(!loaded){$('tts').value=s.tts;$('sub').value=s.sub;$('rep').value=s.repeat;$('slide').value=s.slide;$('popup').value=s.popup;$('fit').value=s.fit;$('keep').value=s.keep;$('keypad').value=s.keypad||'tenkey';loaded=true}\n" +
+        " if(!loaded){$('tts').value=s.tts;$('sub').value=s.sub;$('rep').value=s.repeat;$('slide').value=s.slide;$('popup').value=s.popup;$('fit').value=s.fit;$('keep').value=s.keep;loaded=true}\n" +
         "}\n" +
         "function api(p){return fetch(p).then(function(r){return r.json()}).then(function(s){render(s);if(!s.ok)msg(s.error||'오류');return s}).catch(function(){msg('호출기에 연결할 수 없습니다')})}\n" +
         "function callNum(){if(!v){msg('번호를 입력하세요');return}var n=v;api('/call?n='+encodeURIComponent(n)).then(function(s){if(s&&s.ok){msg(n+'번 호출 완료');last=parseInt(n,10)||last;v='';show()}})}\n" +
         "function next(){v=String((last||parseInt($('cur').textContent,10)||0)+1);show()}\n" +
-        "function saveCfg(){var q=['tts','sub'].map(function(i){return i+'='+encodeURIComponent($(i).value)});q.push('repeat='+$('rep').value,'slide='+$('slide').value,'popup='+$('popup').value,'keep='+$('keep').value,'keypad='+$('keypad').value,'fit='+$('fit').value);api('/config?'+q.join('&')).then(function(s){if(s&&s.ok)msg('설정 저장됨')})}\n" +
+        "function saveCfg(){var q=['tts','sub'].map(function(i){return i+'='+encodeURIComponent($(i).value)});q.push('repeat='+$('rep').value,'slide='+$('slide').value,'popup='+$('popup').value,'keep='+$('keep').value,'fit='+$('fit').value);api('/config?'+q.join('&')).then(function(s){if(s&&s.ok)msg('설정 저장됨')})}\n" +
         "function loadThumbs(){fetch('/images').then(function(r){return r.json()}).then(function(d){var t=$('thumbs');t.innerHTML='';if(!d.images.length){t.innerHTML='<div class=\"empty\">등록된 이미지가 없습니다</div>';return}\n" +
         " d.images.forEach(function(n){var e=document.createElement('div');e.className='thumb';e.innerHTML='<img loading=\"lazy\" src=\"/img/'+n+'\"><button title=\"삭제\">✕</button>';e.querySelector('button').onclick=function(){if(confirm('이 이미지를 삭제할까요?'))api('/image/delete?name='+n).then(loadThumbs)};t.appendChild(e)})}).catch(function(){})}\n" +
         "function resize(file){return new Promise(function(res,rej){var img=new Image();img.onload=function(){var m=1920,w=img.naturalWidth,h=img.naturalHeight,s=Math.min(1,m/Math.max(w,h));var c=document.createElement('canvas');c.width=Math.round(w*s);c.height=Math.round(h*s);var x=c.getContext('2d');x.fillStyle='#fff';x.fillRect(0,0,c.width,c.height);x.drawImage(img,0,0,c.width,c.height);URL.revokeObjectURL(img.src);c.toBlob(function(b){b?res(b):rej()},'image/jpeg',0.88)};img.onerror=function(){rej()};img.src=URL.createObjectURL(file)})}\n" +
         "async function upload(files){var ok=0,err='';for(var i=0;i<files.length;i++){msg('이미지 보내는 중… '+(i+1)+'/'+files.length);try{var b=await resize(files[i]);var r=await fetch('/image',{method:'POST',headers:{'Content-Type':'image/jpeg'},body:b});var s=await r.json();if(s.ok)ok++;else err=s.error}catch(e){err='보내기 실패'}}msg(err?('이미지 '+ok+'장 추가 · 실패: '+err):('✔ 이미지 '+ok+'장 추가됨'));loadThumbs()}\n" +
         "$('imgbox').addEventListener('toggle',function(){if(this.open)loadThumbs()});\n" +
-        "// 숫자 키패드: 숫자 입력, Enter 호출, + 다음 번호, * 재호출, / 화면 비우기, - 전체 삭제, Backspace 한 칸\n" +
-        "// '.' 은 텐키형이면 한 칸 지우기, 백스페이스형이면 전체 삭제 (설정에서 선택)\n" +
-        "var NUMPAD={Numpad0:'0',Numpad1:'1',Numpad2:'2',Numpad3:'3',Numpad4:'4',Numpad5:'5',Numpad6:'6',Numpad7:'7',Numpad8:'8',Numpad9:'9',NumpadEnter:'Enter',NumpadAdd:'+',NumpadSubtract:'-',NumpadMultiply:'*',NumpadDivide:'/',NumpadDecimal:'.',NumpadComma:'.'};\n" +
-        "document.addEventListener('keydown',function(e){var t=e.target.tagName;if(t==='INPUT'||t==='SELECT'||t==='TEXTAREA'||e.ctrlKey||e.altKey||e.metaKey)return;\n" +
-        " var k=NUMPAD[e.code]||e.key,h=true; // 텐키는 NumLock 상태와 상관없이 키 위치(code)로 판단\n" +
-        " if(/^[0-9]$/.test(k)){if(!e.repeat)window.k(k)}else if(k==='Enter'){if(!e.repeat)callNum()}else if(k==='Backspace'){del()}else if(k==='.'||k===','||k==='Delete'){if(S.keypad==='backspace'){v='';show()}else del()}else if(k==='-'||k==='Escape'){v='';show()}\n" +
-        " else if(k==='+'){if(!e.repeat)next()}else if(k==='*'){if(!e.repeat)api('/recall').then(function(s){if(s&&s.ok)msg('재호출했습니다')})}else if(k==='/'){if(!e.repeat)api('/clear').then(function(s){if(s&&s.ok)msg('화면을 비웠습니다')})}else h=false;\n" +
-        " if(h){e.preventDefault();if(document.activeElement&&document.activeElement.blur)document.activeElement.blur()}});\n" +
+        "// ── 키 설정 (호출기 앱과 공유, 키 이름은 KeyboardEvent.code) ──\n" +
+        "var ACTS=[['call','호출'],['next','다음 번호 입력'],['recall','재호출'],['blank','화면 비우기'],['clear','입력 전체 삭제'],['back','한 칸 지우기']];\n" +
+        "var KEY_TENKEY='call=NumpadEnter,Enter;next=NumpadAdd;recall=NumpadMultiply;blank=NumpadDivide;clear=NumpadSubtract,Escape;back=NumpadDecimal,NumpadComma,Backspace';\n" +
+        "var KEY_BACKSPACE='call=NumpadEnter,Enter;next=NumpadAdd;recall=NumpadMultiply;blank=NumpadDivide;clear=NumpadSubtract,NumpadDecimal,NumpadComma,Escape;back=Backspace';\n" +
+        "var KM=parseKeys(KEY_TENKEY),keysStr='',capturing=null;\n" +
+        "function parseKeys(str){var m={};ACTS.forEach(function(a){m[a[0]]=[]});(str||'').split(';').forEach(function(p){var i=p.indexOf('=');if(i<1)return;var a=p.slice(0,i);if(!m[a])return;p.slice(i+1).split(',').forEach(function(c){if(c&&m[a].indexOf(c)<0)m[a].push(c)})});return m}\n" +
+        "function serKeys(m){return ACTS.map(function(a){return a[0]+'='+m[a[0]].join(',')}).join(';')}\n" +
+        "function keyLabel(c){var n={NumpadEnter:'텐키 Enter',NumpadAdd:'텐키 +',NumpadSubtract:'텐키 -',NumpadMultiply:'텐키 *',NumpadDivide:'텐키 /',NumpadDecimal:'텐키 .',NumpadComma:'텐키 ,',NumpadEqual:'텐키 =',Backspace:'← 백스페이스',Escape:'Esc',Delete:'Del',Space:'스페이스',Minus:'-',Equal:'=',Period:'.',Comma:',',Slash:'/',ArrowUp:'↑',ArrowDown:'↓',ArrowLeft:'←(화살표)',ArrowRight:'→'}[c];if(n)return n;\n" +
+        " if(/^Numpad\\d$/.test(c))return '텐키 '+c.slice(6);if(/^Key[A-Z]$/.test(c))return c.slice(3);if(/^Digit\\d$/.test(c))return c.slice(5);return c.replace(/^Android:KEYCODE_/,'')}\n" +
+        "function actionFor(c){for(var a in KM)if(KM[a].indexOf(c)>=0)return a;return null}\n" +
+        "function saveKeys(){keysStr=serKeys(KM);renderKeys();api('/config?keys='+encodeURIComponent(keysStr)).then(function(s){if(s&&s.ok)msg('키 설정 저장됨')})}\n" +
+        "function presetKeys(p){KM=parseKeys(p);capturing=null;saveKeys()}\n" +
+        "function renderKeys(){var box=$('keyrows');if(!box)return;box.innerHTML='';ACTS.forEach(function(a){var row=document.createElement('div');row.className='krow';\n" +
+        " var chips=KM[a[0]].map(function(c){return '<span class=\"chip\">'+keyLabel(c)+' <b data-a=\"'+a[0]+'\" data-c=\"'+c+'\">✕</b></span>'}).join('')||'<span class=\"none\">(없음)</span>';\n" +
+        " row.innerHTML='<div class=\"kname\">'+a[1]+'</div><div class=\"kchips\">'+chips+'</div><button class=\"kset'+(capturing===a[0]?' on':'')+'\" data-set=\"'+a[0]+'\">'+(capturing===a[0]?'키를 누르세요…':'키 지정')+'</button>';box.appendChild(row)});\n" +
+        " box.querySelectorAll('b[data-c]').forEach(function(x){x.onclick=function(){var l=KM[x.dataset.a];l.splice(l.indexOf(x.dataset.c),1);saveKeys()}});\n" +
+        " box.querySelectorAll('button[data-set]').forEach(function(x){x.onclick=function(){capturing=capturing===x.dataset.set?null:x.dataset.set;renderKeys()}})}\n" +
+        "var MODS=/^(Shift|Control|Alt|Meta)|^(NumLock|CapsLock|ScrollLock|Tab)$/;\n" +
+        "document.addEventListener('keydown',function(e){\n" +
+        " var code=e.code||'';\n" +
+        " if(capturing){if(!code||MODS.test(code))return;e.preventDefault();if(e.repeat)return;for(var a in KM){var i=KM[a].indexOf(code);if(i>=0)KM[a].splice(i,1)}KM[capturing].push(code);var done=capturing;capturing=null;saveKeys();msg('\"'+keyLabel(code)+'\" → '+ACTS.filter(function(x){return x[0]===done})[0][1]);return}\n" +
+        " var t=e.target.tagName;if(t==='INPUT'||t==='SELECT'||t==='TEXTAREA'||e.ctrlKey||e.altKey||e.metaKey)return;\n" +
+        " var act=actionFor(code),m=act?null:/^(Numpad|Digit)([0-9])$/.exec(code);\n" +
+        " if(!act&&!m)return; // 텐키는 NumLock 상태와 상관없이 키 위치(code)로 판단\n" +
+        " e.preventDefault();if(document.activeElement&&document.activeElement.blur)document.activeElement.blur();\n" +
+        " if(m){if(!e.repeat)window.k(m[2]);return}\n" +
+        " if(act==='back')del();else if(act==='clear'){v='';show()}else if(e.repeat)return;\n" +
+        " else if(act==='call')callNum();else if(act==='next')next();\n" +
+        " else if(act==='recall')api('/recall').then(function(s){if(s&&s.ok)msg('재호출했습니다')});\n" +
+        " else if(act==='blank')api('/clear').then(function(s){if(s&&s.ok)msg('화면을 비웠습니다')});\n" +
+        "});\n" +
+        "renderKeys();\n" +
         "$('dispurl').textContent='http://'+location.host+'/display';\n" +
         "api('/status');setInterval(function(){fetch('/status').then(function(r){return r.json()}).then(render).catch(function(){})},3000);\n" +
         "</script></body></html>\n";

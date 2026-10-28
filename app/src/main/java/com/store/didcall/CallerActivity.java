@@ -35,6 +35,7 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.net.HttpURLConnection;
 import java.net.URL;
 import java.net.URLEncoder;
@@ -183,117 +184,96 @@ public class CallerActivity extends Activity {
         row.addView(b, lp);
     }
 
-    // ───────────────────────── 블루투스/USB 숫자 키패드 ─────────────────────────
+    // ───────────────────────── 블루투스/USB 키패드 (키 설정 가능) ─────────────────────────
     private boolean keyboardHintShown;
 
-    /**
-     * 화면의 버튼보다 먼저 키 입력을 받아 처리 (Enter가 포커스된 버튼을 누르는 것 방지).
-     *  숫자 = 입력, Enter = 호출, + = 다음 번호, * = 재호출, / = 화면 비우기, - = 전체 삭제
-     *  텐키형: . = 한 칸 지우기  /  백스페이스형: Backspace = 한 칸 지우기, . = 전체 삭제
-     */
+    private Map<String, List<String>> keyMap() {
+        return KeyMap.parse(KeyMap.current(prefs));
+    }
+
+    /** 화면의 버튼보다 먼저 키 입력을 받아 처리 (Enter가 포커스된 버튼을 누르는 것 방지) */
     @Override
     public boolean dispatchKeyEvent(KeyEvent e) {
-        int code = e.getKeyCode();
-        String action = keyAction(code, e);
-        if (action == null) return super.dispatchKeyEvent(e);
+        String code = KeyMap.codeOf(e);
+        String action = KeyMap.actionFor(keyMap(), code);
+        String digit = action == null ? KeyMap.digitOf(code) : null;
+        if (action == null && digit == null) return super.dispatchKeyEvent(e);
         if (e.getAction() != KeyEvent.ACTION_DOWN) return true;
         boolean repeat = e.getRepeatCount() > 0;
         if (!keyboardHintShown) {
             keyboardHintShown = true;
-            msg(keypadHint());
+            msg("⌨ 키패드 연결됨 · 키 설정은 ⚙ → 키 설정");
+        }
+        if (digit != null) {
+            if (!repeat) key(digit);
+            return true;
         }
         switch (action) {
             case "call": if (!repeat) sendCall(); break;
             case "back": key("←"); break;
-            case "dot": key(backspaceLayout() ? "C" : "←"); break;
             case "clear": key("C"); break;
             case "next": if (!repeat) { input = String.valueOf(lastSent + 1); showInput(); } break;
             case "recall": if (!repeat) request("/recall", "재호출했습니다"); break;
             case "blank": if (!repeat) request("/clear", "TV 화면을 비웠습니다"); break;
-            default: if (!repeat) key(action); // 숫자
+            default: break;
         }
         return true;
     }
 
-    private static String keyAction(int code, KeyEvent e) {
-        // 텐키는 NumLock이 꺼져 있으면 화살표·End 등으로 들어오므로, 물리 키 위치(스캔 코드)로 먼저 판단
-        switch (e.getScanCode()) {
-            case 82: return "0";
-            case 79: return "1";
-            case 80: return "2";
-            case 81: return "3";
-            case 75: return "4";
-            case 76: return "5";
-            case 77: return "6";
-            case 71: return "7";
-            case 72: return "8";
-            case 73: return "9";
-            case 96: return "call";    // 텐키 Enter
-            case 78: return "next";    // +
-            case 55: return "recall";  // *
-            case 74: return "clear";   // -
-            case 98: return "blank";   // /
-            case 83:                   // .
-            case 121: return "dot";    // , (일부 텐키)
-            case 14: return "back";    // Backspace
-            default: break;
+    /** 키 설정: 동작을 고른 뒤 키패드에서 원하는 키를 누르면 지정 */
+    private void showKeySettings() {
+        final Map<String, List<String>> m = keyMap();
+        String[] items = new String[KeyMap.ACTIONS.length + 2];
+        for (int i = 0; i < KeyMap.ACTIONS.length; i++) {
+            items[i] = KeyMap.LABELS[i] + "  :  " + KeyMap.describe(m, KeyMap.ACTIONS[i]);
         }
-        if (code >= KeyEvent.KEYCODE_0 && code <= KeyEvent.KEYCODE_9) return String.valueOf(code - KeyEvent.KEYCODE_0);
-        if (code >= KeyEvent.KEYCODE_NUMPAD_0 && code <= KeyEvent.KEYCODE_NUMPAD_9) return String.valueOf(code - KeyEvent.KEYCODE_NUMPAD_0);
-        switch (code) {
-            case KeyEvent.KEYCODE_ENTER:
-            case KeyEvent.KEYCODE_NUMPAD_ENTER:
-                return "call";
-            case KeyEvent.KEYCODE_NUMPAD_DOT:     // . (텐키형: 한 칸 / 백스페이스형: 전체 삭제)
-            case KeyEvent.KEYCODE_PERIOD:
-            case KeyEvent.KEYCODE_NUMPAD_COMMA:   // 일부 텐키는 . 자리에 , 가 있음
-            case KeyEvent.KEYCODE_COMMA:
-            case KeyEvent.KEYCODE_FORWARD_DEL:    // NumLock 꺼진 상태의 . 키
-                return "dot";
-            case KeyEvent.KEYCODE_DEL:            // Backspace = 항상 한 칸 지우기
-                return "back";
-            case KeyEvent.KEYCODE_NUMPAD_SUBTRACT: // 텐키 - = 전체 삭제
-            case KeyEvent.KEYCODE_ESCAPE:
-            case KeyEvent.KEYCODE_MINUS:
-            case KeyEvent.KEYCODE_CLEAR:
-                return "clear";
-            case KeyEvent.KEYCODE_NUMPAD_ADD:
-            case KeyEvent.KEYCODE_PLUS:
-                return "next";
-            case KeyEvent.KEYCODE_NUMPAD_MULTIPLY:
-            case KeyEvent.KEYCODE_STAR:
-                return "recall";
-            case KeyEvent.KEYCODE_NUMPAD_DIVIDE:
-            case KeyEvent.KEYCODE_SLASH:
-                return "blank";
-            case KeyEvent.KEYCODE_EQUALS:         // 일반 키보드의 '+' 키 (Shift 없이)
-                return e.isShiftPressed() ? "next" : null;
-            default:
-                return null;
-        }
-    }
-
-    private boolean backspaceLayout() {
-        return "backspace".equals(prefs.getString(HostService.K_KEYPAD, "tenkey"));
-    }
-
-    private String keypadHint() {
-        return backspaceLayout()
-                ? "⌨ 백스페이스형: Enter 호출 · + 다음 · * 재호출 · / 화면 비우기 · ← 한 칸 · - . 전체 삭제"
-                : "⌨ 텐키형: Enter 호출 · + 다음 · * 재호출 · / 화면 비우기 · . 한 칸 · - 전체 삭제";
-    }
-
-    private void chooseKeypad() {
-        String[] items = {"텐키형 (백스페이스 없음)\n. = 한 칸 지우기 · - = 전체 삭제",
-                "백스페이스형\n← = 한 칸 지우기 · . 과 - = 전체 삭제"};
+        items[KeyMap.ACTIONS.length] = "↺ 텐키형 기본값으로 (. = 한 칸 지우기)";
+        items[KeyMap.ACTIONS.length + 1] = "↺ 백스페이스형 기본값으로 (← = 한 칸 지우기)";
         new AlertDialog.Builder(this, android.R.style.Theme_Material_Dialog_Alert)
-                .setTitle("키패드 종류")
-                .setSingleChoiceItems(items, backspaceLayout() ? 1 : 0, (d, which) -> {
-                    prefs.edit().putString(HostService.K_KEYPAD, which == 1 ? "backspace" : "tenkey").apply();
-                    msg(keypadHint());
-                    d.dismiss();
+                .setTitle("키 설정 (숫자 키는 항상 번호 입력)")
+                .setItems(items, (d, which) -> {
+                    if (which < KeyMap.ACTIONS.length) {
+                        captureKey(which);
+                    } else {
+                        prefs.edit().putString(KeyMap.K_KEYS,
+                                which == KeyMap.ACTIONS.length ? KeyMap.TENKEY : KeyMap.BACKSPACE).apply();
+                        msg("키 설정을 기본값으로 되돌렸습니다");
+                        showKeySettings();
+                    }
                 })
+                .setNegativeButton("닫기", null)
                 .show();
+    }
+
+    private void captureKey(final int idx) {
+        final String action = KeyMap.ACTIONS[idx];
+        final Map<String, List<String>> m = keyMap();
+        final AlertDialog dlg = new AlertDialog.Builder(this, android.R.style.Theme_Material_Dialog_Alert)
+                .setTitle("'" + KeyMap.LABELS[idx] + "' 키 지정")
+                .setMessage(captureText(m, action))
+                .setPositiveButton("완료", (d, w) -> showKeySettings())
+                .setNeutralButton("이 동작의 키 모두 지우기", (d, w) -> {
+                    m.get(action).clear();
+                    prefs.edit().putString(KeyMap.K_KEYS, KeyMap.serialize(m)).apply();
+                    showKeySettings();
+                })
+                .create();
+        dlg.setOnKeyListener((d, keyCode, e) -> {
+            String code = KeyMap.codeOf(e);
+            if (KeyMap.isModifier(code)) return false; // 뒤로 버튼 등은 그대로
+            if (e.getAction() == KeyEvent.ACTION_DOWN && e.getRepeatCount() == 0) {
+                KeyMap.assign(m, action, code);
+                prefs.edit().putString(KeyMap.K_KEYS, KeyMap.serialize(m)).apply();
+                dlg.setMessage(captureText(m, action) + "\n\n✔ " + KeyMap.label(code) + " 지정됨");
+            }
+            return true; // 키가 대화상자 버튼을 누르지 않도록
+        });
+        dlg.show();
+    }
+
+    private static String captureText(Map<String, List<String>> m, String action) {
+        return "키패드에서 원하는 키를 누르세요. 여러 개를 지정할 수 있습니다.\n"
+                + "(다른 동작에 지정돼 있던 키는 이 동작으로 옮겨집니다)\n\n현재: " + KeyMap.describe(m, action);
     }
 
     private void tap(View v) {
@@ -561,7 +541,7 @@ public class CallerActivity extends Activity {
     private void showMenu() {
         new AlertDialog.Builder(this, android.R.style.Theme_Material_Dialog_Alert)
                 .setItems(new String[]{"TV 이미지 추가 (갤러리)", "이미지 관리 · 안내 설정 (브라우저)", "TV·PC 화면 연결 방법",
-                                "번호 초기화 (다음 번호 = 1)", "키패드 종류 (텐키형 / 백스페이스형)", "꺼짐 방지 (배터리 최적화 제외)", "역할 다시 선택", "호출 서버 끄고 종료"},
+                                "번호 초기화 (다음 번호 = 1)", "키 설정 (키패드·키보드)", "꺼짐 방지 (배터리 최적화 제외)", "역할 다시 선택", "호출 서버 끄고 종료"},
                         (d, which) -> {
                             if (which == 0) {
                                 pickImages();
@@ -575,7 +555,7 @@ public class CallerActivity extends Activity {
                                 prefs.edit().putInt(K_LAST, 0).apply();
                                 msg("번호를 초기화했습니다");
                             } else if (which == 4) {
-                                chooseKeypad();
+                                showKeySettings();
                             } else if (which == 5) {
                                 askBatteryExemption();
                             } else if (which == 6) {

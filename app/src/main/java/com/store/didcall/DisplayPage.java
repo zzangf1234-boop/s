@@ -33,13 +33,13 @@ final class DisplayPage {
         "#ov{position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,.7);display:none;align-items:center;justify-content:center;opacity:0;transition:opacity .3s}\n" +
         "#ov.show{display:flex}\n" +
         "#ov.vis{opacity:1}\n" +
-        "#card{min-width:55vw;max-width:94vw;background:#ff8a00;border-radius:4vh;padding:3vh 6vh 4.5vh;text-align:center;color:#fff;box-shadow:0 2vh 6vh rgba(0,0,0,.5)}\n" +
+        "#card{min-width:37vw;max-width:63vw;background:#ff8a00;border-radius:2.7vh;padding:2vh 4vh 3vh;text-align:center;color:#fff;box-shadow:0 2vh 6vh rgba(0,0,0,.5)}\n" +
         "#card.y{background:#ffcc33;color:#111418}\n" +
         "#card.pop{animation:pop .45s cubic-bezier(.34,1.56,.64,1)}\n" +
         "@keyframes pop{from{transform:scale(.5)}to{transform:scale(1)}}\n" +
-        "#pl{font-size:6vh;font-weight:700}\n" +
-        "#pn{font-size:36vh;font-weight:800;line-height:1;white-space:nowrap}\n" +
-        "#ps{font-size:5vh}\n" +
+        "#pl{font-size:4vh;font-weight:700}\n" +
+        "#pn{font-size:24vh;font-weight:800;line-height:1;white-space:nowrap}\n" +
+        "#ps{font-size:3.3vh}\n" +
         "#start{position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(17,20,24,.94);display:flex;flex-direction:column;align-items:center;justify-content:center;cursor:pointer;text-align:center}\n" +
         "#start span{margin-top:2vh}\n" +
         "#start[hidden]{display:none}\n" +
@@ -117,7 +117,7 @@ final class DisplayPage {
         " clearTimeout(hideT);clearInterval(flashT);clearTimeout(speakT);\n" +
         " ov.classList.add('show');requestAnimationFrame(function(){ov.classList.add('vis')});\n" +
         " c.classList.remove('pop','y');void c.offsetWidth;c.classList.add('pop');\n" +
-        " $('pn').style.fontSize=(n.length<=3?36:n.length==4?30:24)+'vh';\n" +
+        " $('pn').style.fontSize=(n.length<=3?24:n.length==4?20:16)+'vh';\n" +
         " var k=6;setTimeout(function(){flashT=setInterval(function(){if(k--<=0){clearInterval(flashT);c.classList.remove('y');return}c.classList.toggle('y')},380)},500);\n" +
         " hideT=setTimeout(hidePopup,(S.popup||10)*1000);\n" +
         " chime();\n" +
