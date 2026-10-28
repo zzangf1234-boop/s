@@ -8,7 +8,7 @@ final class DisplayPage {
         "<!doctype html>\n" +
         "<html lang=\"ko\"><head><meta charset=\"utf-8\">\n" +
         "<meta name=\"viewport\" content=\"width=device-width,initial-scale=1\">\n" +
-        "<title>DID 호출 화면</title>\n" +
+        "<title>DID Display</title>\n" +
         "<style>\n" +
         "*{box-sizing:border-box;margin:0;padding:0}\n" +
         "html,body{height:100%;overflow:hidden;background:#111418;color:#f2f2f2;font-family:'Malgun Gothic','Apple SD Gothic Neo','Noto Sans KR',sans-serif}\n" +
@@ -43,6 +43,15 @@ final class DisplayPage {
         "#start{position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(17,20,24,.94);display:flex;flex-direction:column;align-items:center;justify-content:center;cursor:pointer;text-align:center}\n" +
         "#start span{margin-top:2vh}\n" +
         "#start[hidden]{display:none}\n" +
+        "#corner{position:fixed;top:0;left:0;width:9vh;height:9vh;z-index:50}\n" +
+        "#menu{position:fixed;top:0;left:0;right:0;bottom:0;z-index:60;background:rgba(0,0,0,.6);display:none;align-items:center;justify-content:center}\n" +
+        "#menu.show{display:flex}\n" +
+        "#menu .box{background:#1c2127;border-radius:2vh;padding:3vh;text-align:center;min-width:40vh;box-shadow:0 2vh 6vh rgba(0,0,0,.5)}\n" +
+        "#menu .t{color:#9aa3ad;font-size:2.6vh;margin-bottom:2vh}\n" +
+        "#menu button{display:block;width:100%;margin-top:1.4vh;padding:2.2vh 4vh;border:0;border-radius:1.4vh;font-size:3.4vh;font-weight:700;color:#fff;background:#33404d;cursor:pointer;font-family:inherit}\n" +
+        "#menu button:hover{filter:brightness(1.25)}\n" +
+        "#menu button.x{background:#262b31;color:#9aa3ad;font-size:2.8vh}\n" +
+        "#menu .m{color:#ffcc33;font-size:2.4vh;margin-top:1.6vh;min-height:3vh}\n" +
         "#start b{font-size:6vh;color:#ffcc33}\n" +
         "#start span{font-size:3vh;color:#9aa3ad;line-height:1.6}\n" +
         "</style></head><body>\n" +
@@ -61,6 +70,10 @@ final class DisplayPage {
         " </div>\n" +
         "</div>\n" +
         "<div id=\"ov\"><div id=\"card\"><div id=\"pl\">호출 번호</div><div id=\"pn\"></div><div id=\"ps\"></div></div></div>\n" +
+        "<div id=\"corner\"></div>\n" +
+        "<div id=\"menu\"><div class=\"box\"><div class=\"t\">호출 화면 메뉴</div>\n" +
+        "<button id=\"mReload\">새로고침</button><button id=\"mMin\">최소화</button><button id=\"mExit\">종료</button><button id=\"mCancel\" class=\"x\">닫기</button>\n" +
+        "<div class=\"m\" id=\"mMsg\"></div></div></div>\n" +
         "<div id=\"start\" hidden><b>화면을 클릭하면 시작합니다</b><span>소리(딩동·음성)를 켜고 전체화면으로 전환합니다.<br>윈도우 실행 파일(DID-Display.bat)로 열면 이 단계 없이 바로 시작됩니다.</span></div>\n" +
         "<script>\n" +
         "var APP=/[?&]app=1/.test(location.search),S={},seq=null,imgs=[],imgKey='',idx=-1,front='ia',slideT=0,hideT=0,flashT=0,ac=null,voice=null,lastSlide=0,fails=0,speakT=0;\n" +
@@ -124,6 +137,21 @@ final class DisplayPage {
         "document.addEventListener('keydown',function(e){if(!$('start').hidden){start();return}if(e.key==='Escape')hidePopup();if(e.key==='ArrowRight')next()});\n" +
         "var idleT;document.addEventListener('mousemove',function(){document.body.classList.remove('idle');clearTimeout(idleT);idleT=setTimeout(function(){document.body.classList.add('idle')},3000)});\n" +
         "window.addEventListener('resize',function(){render(S)});\n" +
+        "// ── 숨은 메뉴: 왼쪽 위 모서리를 빠르게 3번 클릭 → 새로고침 / 최소화 / 종료 ──\n" +
+        "var cornerHits=[],menuT=0;\n" +
+        "$('corner').addEventListener('click',function(){var now=Date.now();cornerHits.push(now);cornerHits=cornerHits.filter(function(t){return now-t<1500});if(cornerHits.length>=3){cornerHits=[];openMenu()}});\n" +
+        "function openMenu(){$('mMsg').textContent='';$('mMin').style.display=APP?'none':'';$('mExit').style.display=APP?'none':'';$('menu').classList.add('show');clearTimeout(menuT);menuT=setTimeout(closeMenu,15000)}\n" +
+        "function closeMenu(){clearTimeout(menuT);$('menu').classList.remove('show')}\n" +
+        "function helper(cmd){return fetch('http://127.0.0.1:8799/'+cmd+'?t='+Date.now(),{mode:'no-cors',cache:'no-store'})}\n" +
+        "$('mCancel').onclick=closeMenu;\n" +
+        "$('menu').addEventListener('click',function(e){if(e.target===this)closeMenu()});\n" +
+        "$('mReload').onclick=function(){location.reload()};\n" +
+        "$('mMin').onclick=function(){helper('min').then(closeMenu).catch(function(){\n" +
+        " if(document.fullscreenElement&&document.exitFullscreen){document.exitFullscreen();closeMenu();return}\n" +
+        " $('mMsg').textContent='최소화는 윈도우 실행 파일(DID-Display.bat)로 열었을 때 됩니다'})};\n" +
+        "$('mExit').onclick=function(){helper('close').then(function(){setTimeout(function(){$('mMsg').textContent='종료되지 않으면 Alt+F4 를 누르세요'},1500)}).catch(function(){\n" +
+        " try{window.close()}catch(x){}setTimeout(function(){$('mMsg').textContent='Alt+F4 를 누르면 종료됩니다'},400)})};\n" +
+        "document.addEventListener('keydown',function(e){if(e.key==='Escape'&&$('menu').classList.contains('show'))closeMenu()},true);\n" +
         "poll();loadImages();\n" +
         "</script></body></html>\n";
 }

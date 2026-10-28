@@ -354,20 +354,13 @@ final class CallServer {
         out.flush();
     }
 
-    /** 윈도우에서 더블클릭하면 엣지 전체화면으로 호출 화면을 여는 실행 파일 (이 기기의 주소가 들어감) */
+    /** 윈도우에서 더블클릭하면 엣지 전체화면으로 호출 화면을 여는 실행 파일 (호출기 주소가 들어감, 최소화/종료 도우미 포함) */
     private static void sendBat(OutputStream out, String hostHeader) throws IOException {
         // 브라우저가 접속한 주소를 그대로 사용 (가장 확실하게 연결되는 주소)
         String host = hostHeader != null && hostHeader.matches("[0-9A-Za-z.\\-]+(:[0-9]{1,5})?")
                 ? hostHeader : Net.localIp() + ":" + Net.HTTP_PORT;
         String url = "http://" + host + "/display";
-        String bat = "@echo off\r\n"
-                + "rem DID number call - browser display\r\n"
-                + "rem Put a shortcut of this file in shell:startup to open it when Windows starts.\r\n"
-                + "set URL=" + url + "\r\n"
-                + "set PROFILE=%LOCALAPPDATA%\\DIDCallDisplay\r\n"
-                + "start \"\" msedge --kiosk \"%URL%\" --edge-kiosk-type=fullscreen"
-                + " --autoplay-policy=no-user-gesture-required --no-first-run"
-                + " --user-data-dir=\"%PROFILE%\"\r\n";
+        String bat = LauncherBat.HTML.replace("__URL__", url);
         byte[] b = bat.getBytes(UTF8);
         String head = "HTTP/1.1 200 OK\r\n"
                 + "Content-Type: application/octet-stream\r\n"
