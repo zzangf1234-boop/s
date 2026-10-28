@@ -1,21 +1,19 @@
 @echo off
 rem ============================================================
 rem  DID number call - kiosk order splitter
-rem  The kiosk program prints to virtual ports instead of the real printers:
-rem     real COM1 : kiosk uses COM21, this program reads COM22
-rem     real COM3 : kiosk uses COM23, this program reads COM24
-rem  (virtual pairs COM21 + COM22 and COM23 + COM24 are made with com0com)
-rem  This program
-rem   1) passes everything to the real printers in both directions (printing works as before)
-rem   2) sends a copy of every receipt / kitchen slip to the DID caller phone (port 9100)
+rem  Basic setup (recommended): the kiosk program prints as before to COM1 / COM3,
+rem  and an EXTRA output port COM21 is added in the kiosk printer settings.
+rem  COM21 + COM22 are a virtual pair made with com0com. This program listens on COM22
+rem  and sends a copy of every slip to the DID caller phone (port 9100). Printing is not touched.
+rem  Optional: pass-through mode (kiosk prints to the virtual port, this program forwards to the real printer)
 rem  Settings below: change only the values after "=".
 rem    ROUTES = list separated by spaces. Each item:
 rem             readport, then the greater-than sign, then real printer port, then @speed
 rem             or only a port with @speed = listen only (Y-cable tap: just copy to the phone, no forwarding)
 rem    PHONE  = caller phone IP (empty = find automatically on the same Wi-Fi)
-rem  Close this window = splitter stops (nothing prints). To undo: set kiosk printer ports back to COM1 / COM3.
+rem  Listen-only mode: closing this window only stops the copy to the phone, printing is not affected.
 rem ============================================================
-set "ROUTES=COM22>COM1@9600 COM24>COM3@9600"
+set "ROUTES=COM22@9600"
 set "PHONE="
 set "DID_SELF=%~f0"
 title DID Order Splitter
@@ -167,7 +165,8 @@ foreach ($rt in $routes) {
 }
 Write-Host (' 이 PC의 COM 포트: {0}' -f (([System.IO.Ports.SerialPort]::GetPortNames() | Sort-Object -Unique) -join ', '))
 Write-Host (' 기록 폴더: {0}' -f $logDir)
-Write-Host ' 이 창을 닫으면 영수증·주방주문서가 인쇄되지 않습니다. (최소화해 두세요)' -ForegroundColor Red
+if (@($routes | Where-Object { $_.Out }).Count -gt 0) { Write-Host ' 이 창을 닫으면 영수증·주방주문서가 인쇄되지 않습니다. (최소화해 두세요)' -ForegroundColor Red }
+else { Write-Host ' 이 창을 닫으면 호출기로 주문이 넘어가지 않습니다 (인쇄는 그대로). 최소화해 두세요.' -ForegroundColor Yellow }
 Write-Host ''
 if ($routes.Count -eq 0) { Write-Host ' 설정(ROUTES)이 비어 있습니다.' -ForegroundColor Red; return }
 $script:phone = Find-Phone
@@ -207,6 +206,14 @@ while ($true) {
         $b = New-Object byte[] $n
         $r = $rt.V.Read($b, 0, $n)
         if ($rt.P) { $rt.P.Write($b, 0, $r) }
+        else {
+          # 듣기만: 키오스크가 프린터 상태를 물으면(DLE EOT n) '정상'으로 답해 줌 (추가 출력 포트가 오류로 보이지 않게)
+          for ($i = 0; $i -lt $r - 2; $i++) {
+            if ($b[$i] -eq 0x10 -and $b[$i + 1] -eq 0x04) {
+              try { $rt.V.Write([byte[]]@($(if ($b[$i + 2] -eq 1) { 0x16 } else { 0x12 })), 0, 1) } catch {}
+            }
+          }
+        }
         $rt.Buf.Write($b, 0, $r)
         $rt.Last = Get-Date
         $did = $true
