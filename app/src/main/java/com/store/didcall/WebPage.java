@@ -67,7 +67,7 @@ final class WebPage {
         "<div id=\"msg\"></div>\n" +
         "<details id=\"imgbox\"><summary>TV 이미지·동영상 (왼쪽 화면)</summary>\n" +
         "<div class=\"thumbs\" id=\"thumbs\"></div>\n" +
-        "<label class=\"up\">＋ 이미지·동영상 추가<input type=\"file\" accept=\"image/*,video/*\" multiple hidden onchange=\"upload(this.files);this.value=''\"></label>\n" +
+        "<label class=\"up\">＋ 이미지·동영상 추가<input type=\"file\" accept=\"image/*,video/*\" multiple hidden onchange=\"upload(Array.prototype.slice.call(this.files));this.value=''\"></label>\n" +
         "<p class=\"note\">이미지는 자동으로 선명한 크기(최대 2560px)로 맞춰 보냅니다. 동영상은 mp4 · 1080p 이하 · 300MB 이하를 권장합니다. 썸네일의 ◀ ▶ 로 순서를 바꿉니다.</p>\n" +
         "슬라이드 넘김 간격 (초, 동영상은 끝까지 재생)<input id=\"slide\" type=\"number\" min=\"3\" max=\"300\">\n" +
         "표시 방식<select id=\"fit\"><option value=\"contain\">전체 보이기</option><option value=\"cover\">화면 꽉 채우기 (가장자리 잘림)</option></select>\n" +
@@ -220,5 +220,5 @@ final class WebPage {
         "api('/status');setInterval(function(){fetch(withTok('/status'),{cache:'no-store'}).then(function(r){return r.json()}).then(render).catch(function(){})},3000);\n" +
         "</script></body></html>\n";
 
-    static final String HTML = new StringBuilder(20660).append(P0).append(P1).toString();
+    static final String HTML = new StringBuilder(20688).append(P0).append(P1).toString();
 }
