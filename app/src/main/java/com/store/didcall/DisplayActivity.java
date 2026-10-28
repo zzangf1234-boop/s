@@ -8,6 +8,7 @@ import android.content.SharedPreferences;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.graphics.Color;
+import android.graphics.Paint;
 import android.media.AudioFormat;
 import android.media.AudioManager;
 import android.media.AudioTrack;
@@ -70,6 +71,7 @@ public class DisplayActivity extends Activity implements CallServer.Host {
     private int slideIndex = -1;
 
     // 오른쪽 정보
+    private LinearLayout right;
     private TextView curView, addrView;
     private final TextView[] historyViews = new TextView[5];
 
@@ -161,7 +163,7 @@ public class DisplayActivity extends Activity implements CallServer.Host {
         imageFrame = new FrameLayout(this);
         imageFrame.setBackground(Ui.round(this, Color.BLACK, 24));
         imageFrame.setClipToOutline(true);
-        LinearLayout.LayoutParams lpL = new LinearLayout.LayoutParams(0, -1, 0.70f);
+        LinearLayout.LayoutParams lpL = new LinearLayout.LayoutParams(0, -1, 0.80f);
         lpL.rightMargin = pad;
         main.addView(imageFrame, lpL);
 
@@ -179,18 +181,19 @@ public class DisplayActivity extends Activity implements CallServer.Host {
         imageFrame.addView(placeholder, new FrameLayout.LayoutParams(-1, -1));
 
         // ── 오른쪽: 현재 번호 + 최근 호출 ──
-        LinearLayout right = new LinearLayout(this);
+        right = new LinearLayout(this);
         right.setOrientation(LinearLayout.VERTICAL);
         right.setGravity(Gravity.CENTER_HORIZONTAL);
         right.setBackground(Ui.round(this, Ui.PANEL, 24));
         right.setPadding(pad / 2, pad, pad / 2, pad);
-        main.addView(right, new LinearLayout.LayoutParams(0, -1, 0.30f));
+        main.addView(right, new LinearLayout.LayoutParams(0, -1, 0.20f));
+        right.post(this::render); // 칸 너비가 정해진 뒤 글자 크기 다시 맞춤
 
-        TextView curLabel = px(Ui.text(this, "현재 호출", 0, Ui.MUTED, true), 0.045f);
+        TextView curLabel = px(Ui.text(this, "현재 호출", 0, Ui.MUTED, true), 0.036f);
         curLabel.setGravity(Gravity.CENTER);
         right.addView(curLabel);
 
-        curView = px(Ui.text(this, "", 0, Ui.YELLOW, true), 0.17f);
+        curView = px(Ui.text(this, "", 0, Ui.YELLOW, true), 0.15f);
         curView.setGravity(Gravity.CENTER);
         curView.setSingleLine(true);
         curView.setIncludeFontPadding(false);
@@ -202,11 +205,11 @@ public class DisplayActivity extends Activity implements CallServer.Host {
         dLp.setMargins(pad / 2, pad, pad / 2, pad / 2);
         right.addView(divider, dLp);
 
-        TextView rTitle = px(Ui.text(this, "최근 호출", 0, Ui.MUTED, true), 0.04f);
+        TextView rTitle = px(Ui.text(this, "최근 호출", 0, Ui.MUTED, true), 0.033f);
         rTitle.setGravity(Gravity.CENTER);
         right.addView(rTitle);
         for (int i = 0; i < historyViews.length; i++) {
-            TextView t = px(Ui.text(this, "", 0, Ui.TEXT, true), 0.07f);
+            TextView t = px(Ui.text(this, "", 0, Ui.TEXT, true), 0.075f);
             t.setGravity(Gravity.CENTER);
             t.setSingleLine(true);
             right.addView(t, new LinearLayout.LayoutParams(-1, 0, 1f));
@@ -278,14 +281,30 @@ public class DisplayActivity extends Activity implements CallServer.Host {
     private void render() {
         String cur = store.current();
         curView.setText(cur.isEmpty() ? "—" : cur);
-        float ratio = cur.length() <= 3 ? 0.17f : cur.length() == 4 ? 0.14f : 0.11f;
-        curView.setTextSize(TypedValue.COMPLEX_UNIT_PX, screenH * ratio);
+        fitText(curView, curView.getText().toString(), 0.15f);
 
         List<String> hist = store.history();
         for (int i = 0; i < historyViews.length; i++) {
-            historyViews[i].setText(i < hist.size() ? hist.get(i) : "");
+            String n = i < hist.size() ? hist.get(i) : "";
+            historyViews[i].setText(n);
             historyViews[i].setAlpha(1f - i * 0.14f);
+            fitText(historyViews[i], n, 0.075f);
         }
+    }
+
+    /** 오른쪽 칸 너비에 맞게 글자 크기 자동 조절 (3자리는 최대 크기, 4자리 이상은 줄여서 표시) */
+    private void fitText(TextView t, String s, float maxRatio) {
+        float size = screenH * maxRatio;
+        int avail = right.getWidth() - right.getPaddingLeft() - right.getPaddingRight();
+        if (avail <= 0) avail = (int) (screenW * 0.17f);
+        avail = (int) (avail * 0.94f);
+        Paint p = new Paint(t.getPaint());
+        p.setTextSize(size);
+        while (size > 8 && !s.isEmpty() && p.measureText(s) > avail) {
+            size *= 0.92f;
+            p.setTextSize(size);
+        }
+        t.setTextSize(TypedValue.COMPLEX_UNIT_PX, size);
     }
 
     // ───────────────────────── 이미지 슬라이드쇼 ─────────────────────────
