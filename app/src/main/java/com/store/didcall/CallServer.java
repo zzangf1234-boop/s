@@ -38,6 +38,8 @@ import java.util.concurrent.Executors;
  *  GET  /                    휴대폰 브라우저용 호출 페이지
  *  GET  /display             PC 브라우저용 호출 화면 (TV 화면과 동일)
  *  GET  /display.bat         윈도우 전체화면 실행 파일
+ *  GET  /voice?n=123         안내 음성 WAV (안드로이드와 같은 목소리)
+ *  GET  /chime.wav           딩동 효과음 WAV
  */
 final class CallServer {
 
@@ -46,6 +48,10 @@ final class CallServer {
         ImageStore images();
         void putConfig(JSONObject o) throws Exception;
         void applyConfig(Map<String, String> q);
+        /** 안내 음성 WAV 파일 (안드로이드 음성 엔진으로 생성), 실패하면 null */
+        File voiceFor(String n);
+        /** 딩동 효과음 WAV */
+        byte[] chimeWav();
         /** event: call | recall | clear | config | images — 서버 스레드에서 호출됨 */
         void onChanged(String event);
     }
@@ -194,6 +200,16 @@ final class CallServer {
                     break;
                 case "/display.bat":
                     sendBat(out, hostHeader);
+                    break;
+                case "/voice": {
+                    String n = q.get("n");
+                    File f = Net.validNumber(n) ? host.voiceFor(n) : null;
+                    if (f == null) send(out, 404, "text/plain; charset=utf-8", "Not Found");
+                    else send(out, 200, "audio/wav", readFile(f));
+                    break;
+                }
+                case "/chime.wav":
+                    send(out, 200, "audio/wav", host.chimeWav());
                     break;
                 case "/ping":
                     send(out, 200, "text/plain; charset=utf-8", "DIDCALL OK");

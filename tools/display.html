@@ -59,7 +59,16 @@ function $(i){return document.getElementById(i)}
 
 // ── 소리 ──
 function initAudio(){try{ac=ac||new (window.AudioContext||window.webkitAudioContext)();if(ac.state!=='running')ac.resume()}catch(e){}}
-function chime(){if(!ac||ac.state!=='running')return;var t0=ac.currentTime+.05;[[659.25,0],[523.25,.6]].forEach(function(n){[[1,.7],[2,.2],[3,.05]].forEach(function(h){var o=ac.createOscillator(),g=ac.createGain(),t=t0+n[1];o.frequency.value=n[0]*h[0];g.gain.setValueAtTime(0,t);g.gain.linearRampToValueAtTime(h[1]*.6,t+.01);g.gain.exponentialRampToValueAtTime(.0001,t+1.4);o.connect(g);g.connect(ac.destination);o.start(t);o.stop(t+1.5)})})}
+function synthChime(){var t0=ac.currentTime+.05;[[659.25,0],[523.25,.6]].forEach(function(n){[[1,.7],[2,.2],[3,.05]].forEach(function(h){var o=ac.createOscillator(),g=ac.createGain(),t=t0+n[1];o.frequency.value=n[0]*h[0];g.gain.setValueAtTime(0,t);g.gain.linearRampToValueAtTime(h[1]*.6,t+.01);g.gain.exponentialRampToValueAtTime(.0001,t+1.4);o.connect(g);g.connect(ac.destination);o.start(t);o.stop(t+1.5)})})}
+// 안드로이드 기기가 만든 소리 파일을 그대로 재생 (안드로이드 화면과 같은 소리)
+var chimeBuf=null,voiceSrc=null,playId=0;
+function loadBuf(url){return fetch(url,{cache:'no-store'}).then(function(r){if(!r.ok)throw 0;return r.arrayBuffer()}).then(function(a){return new Promise(function(ok,no){ac.decodeAudioData(a,ok,no)})})}
+function playBuf(buf,done){var src=ac.createBufferSource();src.buffer=buf;src.connect(ac.destination);src.onended=done||null;src.start();return src}
+function chime(){if(!ac||ac.state!=='running')return;if(chimeBuf){playBuf(chimeBuf);return}loadBuf('/chime.wav').then(function(b){chimeBuf=b;playBuf(b)}).catch(synthChime)}
+function stopVoice(){playId++;try{if(voiceSrc){voiceSrc.onended=null;voiceSrc.stop()}}catch(e){}voiceSrc=null;if('speechSynthesis' in window)speechSynthesis.cancel()}
+function announceVoice(n,text,rep){if(rep<=0)return;var id=++playId;
+ if(!S.voice||!ac||ac.state!=='running'){speak(text,rep);return}
+ loadBuf('/voice?n='+encodeURIComponent(n)).then(function(buf){if(id!==playId)return;(function play(k){if(k<=0||id!==playId)return;voiceSrc=playBuf(buf,function(){if(id===playId)speakT=setTimeout(function(){play(k-1)},800)})})(rep)}).catch(function(){if(id===playId)speak(text,rep)})}
 function pickVoice(){if(!('speechSynthesis' in window))return;var v=speechSynthesis.getVoices().filter(function(x){return /^ko/i.test(x.lang)});voice=v.filter(function(x){return /Natural|Online/i.test(x.name)})[0]||v[0]||null}
 if('speechSynthesis' in window){pickVoice();speechSynthesis.onvoiceschanged=pickVoice}
 function speak(text,rep){if(!('speechSynthesis' in window)||rep<=0)return;speechSynthesis.cancel();(function say(k){if(k<=0)return;var u=new SpeechSynthesisUtterance(text);u.lang='ko-KR';if(voice)u.voice=voice;u.rate=.95;u.onend=function(){speakT=setTimeout(function(){say(k-1)},800)};speechSynthesis.speak(u)})(rep)}
@@ -95,7 +104,7 @@ function announce(n){
  hideT=setTimeout(hidePopup,(S.popup||10)*1000);
  chime();
  var text=(S.tts||'{n}번 고객님').split('{n}').join(n);
- speakT=setTimeout(function(){speak(text,S.repeat==null?2:S.repeat)},1300);
+ stopVoice();var vid=playId;speakT=setTimeout(function(){if(vid===playId)announceVoice(n,text,S.repeat==null?2:S.repeat)},1300);
 }
 function hidePopup(){var ov=$('ov');if(!ov.classList.contains('show'))return;clearTimeout(hideT);clearInterval(flashT);$('card').classList.remove('y');ov.classList.remove('vis');setTimeout(function(){if(!ov.classList.contains('vis'))ov.classList.remove('show')},320)}
 

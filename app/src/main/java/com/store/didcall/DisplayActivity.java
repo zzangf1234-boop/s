@@ -17,6 +17,7 @@ import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
 import android.speech.tts.TextToSpeech;
+import android.speech.tts.UtteranceProgressListener;
 import android.util.TypedValue;
 import android.view.Gravity;
 import android.view.KeyEvent;
@@ -30,7 +31,12 @@ import android.widget.TextView;
 
 import org.json.JSONObject;
 
+import java.io.ByteArrayOutputStream;
 import java.io.File;
+import java.util.Arrays;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
@@ -58,6 +64,13 @@ public class DisplayActivity extends Activity implements CallServer.Host {
     private SharedPreferences prefs;
     private TextToSpeech tts;
     private boolean ttsReady;
+    // PC 브라우저 화면에 같은 목소리를 보내기 위해 음성을 파일로 만드는 전용 엔진
+    private TextToSpeech fileTts;
+    private volatile boolean fileTtsReady;
+    private File voiceDir;
+    private final ExecutorService voiceExec = Executors.newSingleThreadExecutor();
+    private final Map<String, CountDownLatch> pendingVoice = new ConcurrentHashMap<>();
+    private byte[] chimeWav;
     private WifiManager.MulticastLock multicastLock;
     private short[] chimePcm;
     private int screenW, screenH;
@@ -106,6 +119,10 @@ public class DisplayActivity extends Activity implements CallServer.Host {
 
         buildUi();
         chimePcm = buildChime();
+        chimeWav = toWav(chimePcm, 22050);
+        voiceDir = new File(getCacheDir(), "voice");
+        //noinspection ResultOfMethodCallIgnored
+        voiceDir.mkdirs();
 
         tts = new TextToSpeech(this, status -> {
             if (status == TextToSpeech.SUCCESS) {
@@ -113,6 +130,17 @@ public class DisplayActivity extends Activity implements CallServer.Host {
                 ttsReady = r != TextToSpeech.LANG_MISSING_DATA && r != TextToSpeech.LANG_NOT_SUPPORTED;
                 tts.setSpeechRate(0.95f);
             }
+        });
+        fileTts = new TextToSpeech(this, status -> {
+            if (status != TextToSpeech.SUCCESS) return;
+            int r = fileTts.setLanguage(Locale.KOREAN);
+            fileTts.setSpeechRate(0.95f);
+            fileTts.setOnUtteranceProgressListener(new UtteranceProgressListener() {
+                @Override public void onStart(String id) {}
+                @Override public void onDone(String id) { finishVoice(id, true); }
+                @Override public void onError(String id) { finishVoice(id, false); }
+            });
+            fileTtsReady = r != TextToSpeech.LANG_MISSING_DATA && r != TextToSpeech.LANG_NOT_SUPPORTED;
         });
 
         // 일부 기기는 이 락이 있어야 브로드캐스트(자동 검색)를 받음
@@ -149,6 +177,8 @@ public class DisplayActivity extends Activity implements CallServer.Host {
         decoder.shutdownNow();
         if (server != null) server.stop();
         if (tts != null) tts.shutdown();
+        if (fileTts != null) fileTts.shutdown();
+        voiceExec.shutdownNow();
         if (multicastLock != null && multicastLock.isHeld()) multicastLock.release();
     }
 
@@ -391,7 +421,78 @@ public class DisplayActivity extends Activity implements CallServer.Host {
         if (tts != null) tts.stop();
         speakNumber = n;
         if (repeat() > 0 && ttsReady) ui.postDelayed(speakRunnable, 1300);
+        // PC 브라우저 화면이 곧 요청할 음성 파일을 미리 만들어 둠
+        if (repeat() > 0) {
+            try { voiceExec.execute(() -> voiceFor(n)); } catch (Exception ignored) {}
+        }
     }
+
+    // ───────────────────────── 브라우저용 음성 파일 ─────────────────────────
+    /** 안내 음성을 WAV 파일로 (이미 만든 문장은 재사용). 서버 스레드에서 호출되며 최대 8초 대기 */
+    @Override
+    public File voiceFor(String n) {
+        if (!fileTtsReady || fileTts == null) return null;
+        String text = ttsTemplate().replace("{n}", n);
+        String key = "v" + Integer.toHexString(text.hashCode()) + "_" + text.length();
+        File f = new File(voiceDir, key + ".wav");
+        if (f.length() > 44) return f;
+        CountDownLatch latch;
+        synchronized (pendingVoice) {
+            latch = pendingVoice.get(key);
+            if (latch == null) {
+                latch = new CountDownLatch(1);
+                pendingVoice.put(key, latch);
+                pruneVoices();
+                int r = fileTts.synthesizeToFile(text, new Bundle(), new File(voiceDir, key + ".tmp"), key);
+                if (r != TextToSpeech.SUCCESS) {
+                    pendingVoice.remove(key);
+                    return null;
+                }
+            }
+        }
+        try { latch.await(8, TimeUnit.SECONDS); } catch (InterruptedException ignored) {}
+        return f.length() > 44 ? f : null;
+    }
+
+    private void finishVoice(String key, boolean ok) {
+        File tmp = new File(voiceDir, key + ".tmp");
+        if (ok && tmp.length() > 44) {
+            //noinspection ResultOfMethodCallIgnored
+            tmp.renameTo(new File(voiceDir, key + ".wav"));
+        } else {
+            //noinspection ResultOfMethodCallIgnored
+            tmp.delete();
+        }
+        CountDownLatch l = pendingVoice.remove(key);
+        if (l != null) l.countDown();
+    }
+
+    /** 음성 파일은 최근 60개만 보관 */
+    private void pruneVoices() {
+        File[] fs = voiceDir.listFiles((d, name) -> name.endsWith(".wav"));
+        if (fs == null || fs.length < 60) return;
+        Arrays.sort(fs, (a, b) -> Long.compare(a.lastModified(), b.lastModified()));
+        for (int i = 0; i < fs.length - 50; i++) {
+            //noinspection ResultOfMethodCallIgnored
+            fs[i].delete();
+        }
+    }
+
+    @Override public byte[] chimeWav() { return chimeWav; }
+
+    private static byte[] toWav(short[] pcm, int rate) {
+        int dataLen = pcm.length * 2;
+        ByteArrayOutputStream b = new ByteArrayOutputStream(44 + dataLen);
+        writeStr(b, "RIFF"); writeInt(b, 36 + dataLen); writeStr(b, "WAVE");
+        writeStr(b, "fmt "); writeInt(b, 16); writeShort(b, 1); writeShort(b, 1);
+        writeInt(b, rate); writeInt(b, rate * 2); writeShort(b, 2); writeShort(b, 16);
+        writeStr(b, "data"); writeInt(b, dataLen);
+        for (short v : pcm) writeShort(b, v);
+        return b.toByteArray();
+    }
+    private static void writeStr(ByteArrayOutputStream b, String s) { for (char c : s.toCharArray()) b.write(c); }
+    private static void writeInt(ByteArrayOutputStream b, int v) { b.write(v); b.write(v >> 8); b.write(v >> 16); b.write(v >> 24); }
+    private static void writeShort(ByteArrayOutputStream b, int v) { b.write(v); b.write(v >> 8); }
 
     private void speak() {
         int rep = repeat();
@@ -514,6 +615,7 @@ public class DisplayActivity extends Activity implements CallServer.Host {
         o.put("popup", popupSeconds());
         o.put("fit", fit());
         o.put("keep", keepMinutes());
+        o.put("voice", fileTtsReady);
     }
 
     @Override
