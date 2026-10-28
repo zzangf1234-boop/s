@@ -59,6 +59,8 @@ public class HostService extends Service implements CallServer.Host {
     static final String K_VOICE_MODE = "voiceMode", K_VOICE = "voiceName", K_RATE = "rate", K_PITCH = "pitch";
     static final String K_ENGINE = "ttsEngine", K_REC_VER = "recVer", K_VIDEO_SOUND = "videoSound";
     static final String K_OPEN = "open", K_CLOSE = "close", K_CLOSE_MSG = "closeMsg", K_CLOSE_ON = "closeOn";
+    /** 키오스크 주문서 받기: 사용 여부, 중계할 주방 프린터 주소, 주문번호 앞 글자 */
+    static final String K_KIOSK_ON = "kioskOn", K_RELAY = "relay", K_ORDER_LABEL = "orderLabel";
     private static final String K_CLOSED = "closed", K_CLOSE_SEQ = "closeSeq", K_STATE = "callState", K_AUTH = "authDevices";
 
     static final String DEF_TTS = "{n}번 고객님, 주문하신 메뉴가 준비되었습니다.";
@@ -84,6 +86,9 @@ public class HostService extends Service implements CallServer.Host {
     private MediaStore media;
     private Auth auth;
     private CallServer server;
+    private PrintReceiver receiver;
+    /** 최근 받은 주문서 기록 (호출기 설정 화면에 표시) */
+    private final java.util.LinkedList<JSONObject> kioskLog = new java.util.LinkedList<>();
     private SharedPreferences prefs;
     private final Handler main = new Handler(Looper.getMainLooper());
 
@@ -137,6 +142,11 @@ public class HostService extends Service implements CallServer.Host {
         acquireLocks();
         server = new CallServer(this);
         server.start();
+        receiver = new PrintReceiver(new PrintReceiver.Listener() {
+            @Override public void onReceipt(byte[] raw, String from, String relayResult) { handleReceipt(raw, from, relayResult); }
+            @Override public String relayTarget() { return prefs.getString(K_RELAY, ""); }
+        });
+        if (prefs.getBoolean(K_KIOSK_ON, false)) receiver.start();
         ticker.scheduleWithFixedDelay(this::checkClosing, 3, 15, TimeUnit.SECONDS);
         running = true;
     }
@@ -159,6 +169,7 @@ public class HostService extends Service implements CallServer.Host {
         running = false;
         ticker.shutdownNow();
         if (server != null) server.stop();
+        if (receiver != null) receiver.stop();
         synchronized (ttsLock) {
             if (fileTts != null) fileTts.shutdown();
         }
@@ -323,6 +334,13 @@ public class HostService extends Service implements CallServer.Host {
         o.put("closeOn", closeOn());
         o.put("closed", prefs.getBoolean(K_CLOSED, false));
         o.put("closeSeq", prefs.getLong(K_CLOSE_SEQ, 0));
+        o.put("kioskOn", prefs.getBoolean(K_KIOSK_ON, false));
+        o.put("kioskPort", PrintReceiver.PORT);
+        o.put("relay", prefs.getString(K_RELAY, ""));
+        o.put("orderLabel", prefs.getString(K_ORDER_LABEL, "주문번호"));
+        JSONArray log = new JSONArray();
+        synchronized (kioskLog) { for (JSONObject j : kioskLog) log.put(j); }
+        o.put("kioskLog", log);
     }
 
     @Override
@@ -377,7 +395,24 @@ public class HostService extends Service implements CallServer.Host {
             e.putBoolean(K_CLOSE_ON, "1".equals(q.get("closeOn")) || "true".equals(q.get("closeOn")));
             closingChanged = true;
         }
+        boolean kioskChanged = false;
+        if (q.containsKey("kioskOn")) {
+            boolean on = "1".equals(q.get("kioskOn")) || "true".equals(q.get("kioskOn"));
+            kioskChanged = on != prefs.getBoolean(K_KIOSK_ON, false);
+            e.putBoolean(K_KIOSK_ON, on);
+        }
+        if (q.containsKey("relay")) {
+            String r = q.get("relay").trim();
+            if (r.isEmpty() || r.matches("[0-9A-Za-z.\\-]{1,100}(:[0-9]{1,5})?")) e.putString(K_RELAY, r);
+        }
+        if (q.containsKey("orderLabel")) {
+            String l = q.get("orderLabel").trim();
+            e.putString(K_ORDER_LABEL, l.isEmpty() || l.length() > 20 ? "주문번호" : l);
+        }
         e.apply();
+        if (kioskChanged) {
+            if (prefs.getBoolean(K_KIOSK_ON, false)) receiver.start(); else receiver.stop();
+        }
         store.setKeepMinutes(keepMinutes());
         if (closingChanged) autoClosed = null; // 다음 확인 때 조용히 다시 판단
         if (engineChanged) main.post(this::initTts);
@@ -385,13 +420,40 @@ public class HostService extends Service implements CallServer.Host {
 
     @Override
     public void onChanged(String event) {
-        if ("call".equals(event) || "recall".equals(event) || "clear".equals(event)) {
+        if ("call".equals(event) || "recall".equals(event) || "clear".equals(event) || "waiting".equals(event)) {
             prefs.edit().putString(K_STATE, store.save()).apply(); // 재시작해도 번호 유지
         }
         // 화면들이 곧 요청할 안내 음성을 미리 만들어 둠
         if (("call".equals(event) || "recall".equals(event)) && repeat() > 0) {
             final String n = store.current();
             try { voiceExec.execute(() -> voiceFor(n)); } catch (Exception ignored) {}
+        }
+    }
+
+    // ───────────────────────── 키오스크 주문서 ─────────────────────────
+    /** 주문서 한 장을 받으면: 주문번호를 읽어 조리중에 추가 (재발행은 무시) */
+    private void handleReceipt(byte[] raw, String from, String relayResult) {
+        Receipt r = Receipt.parse(raw, prefs.getString(K_ORDER_LABEL, "주문번호"));
+        boolean added = false;
+        if (r.number != null && !r.reprint) {
+            added = store.addWaiting(r.number, r.summary());
+            if (added) prefs.edit().putString(K_STATE, store.save()).apply();
+        }
+        try {
+            JSONObject j = new JSONObject();
+            j.put("time", System.currentTimeMillis());
+            j.put("n", r.number == null ? "" : r.number);
+            j.put("reprint", r.reprint);
+            j.put("added", added);
+            j.put("items", r.summary());
+            j.put("from", from);
+            j.put("bytes", raw.length);
+            if (relayResult != null) j.put("relay", relayResult);
+            synchronized (kioskLog) {
+                kioskLog.addFirst(j);
+                while (kioskLog.size() > 10) kioskLog.removeLast();
+            }
+        } catch (Exception ignored) {
         }
     }
 
@@ -402,6 +464,10 @@ public class HostService extends Service implements CallServer.Host {
     }
 
     private synchronized void applyClosed(boolean closed, boolean announce) {
+        if (closed) {
+            store.clearWaiting(); // 마감하면 조리중 목록 비우기
+            prefs.edit().putString(K_STATE, store.save()).apply();
+        }
         SharedPreferences.Editor e = prefs.edit().putBoolean(K_CLOSED, closed);
         if (announce) e.putLong(K_CLOSE_SEQ, prefs.getLong(K_CLOSE_SEQ, 0) + 1);
         e.apply();

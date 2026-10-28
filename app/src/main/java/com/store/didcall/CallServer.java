@@ -37,7 +37,8 @@ import java.util.concurrent.Executors;
  *  GET  /auth/request?name=    호출 권한 요청         GET /auth/check?id=  승인 여부 확인
  *
  * 승인된 기기만 (?t=토큰) — 호출기 폰 자신은 항상 허용
- *  GET  /call?n=  /recall  /clear  /config?..  /closing?on=1|0  /voice/preview?n=&voice=&rate=&pitch=
+ *  GET  /call?n=  (/call?next=1 = 가장 먼저 들어온 조리중 번호)  /recall  /clear  /config?..  /closing?on=1|0
+ *  GET  /waiting/add?n=  /waiting/remove?n=  /waiting/clear  /voice/preview?n=&voice=&rate=&pitch=
  *  POST /media (이미지·동영상)  POST /chime/upload  GET /media/delete?name=  /media/move?name=&d=-1|1  /media/clear
  *
  * 호출기 폰만
@@ -68,7 +69,7 @@ final class CallServer {
         JSONObject voices() throws Exception;
         /** 영업 마감 표시 수동 켜기/끄기 */
         void setClosed(boolean closed);
-        /** event: call | recall | clear | config | media | closing | auth — 서버 스레드에서 호출됨 */
+        /** event: call | recall | clear | config | media | closing | auth | waiting — 서버 스레드에서 호출됨 */
         void onChanged(String event);
     }
 
@@ -314,6 +315,13 @@ final class CallServer {
                     if (!authed) { deny(out); break; }
                     String n = q.get("n");
                     if (n != null) n = n.trim();
+                    if ((n == null || n.isEmpty()) && "1".equals(q.get("next"))) {
+                        n = host.store().oldestWaiting();
+                        if (n == null) {
+                            send(out, 400, JSON, status(false, "조리중인 번호가 없습니다", authed, local));
+                            break;
+                        }
+                    }
                     if (!Net.validNumber(n)) {
                         send(out, 400, JSON, status(false, "번호는 숫자/영문 1~6자", authed, local));
                         break;
@@ -342,6 +350,27 @@ final class CallServer {
                     q.remove("t");
                     host.applyConfig(q);
                     host.onChanged("config");
+                    send(out, 200, JSON, status(true, null, authed, local));
+                    break;
+                case "/waiting/add": {
+                    if (!authed) { deny(out); break; }
+                    String n = q.get("n") == null ? "" : q.get("n").trim();
+                    boolean ok = host.store().addWaiting(n, q.get("items"));
+                    if (ok) host.onChanged("waiting");
+                    send(out, 200, JSON, status(ok, ok ? null : "이미 조리중이거나 올바르지 않은 번호입니다", authed, local));
+                    break;
+                }
+                case "/waiting/remove": {
+                    if (!authed) { deny(out); break; }
+                    boolean ok = host.store().removeWaiting(q.get("n") == null ? "" : q.get("n").trim());
+                    if (ok) host.onChanged("waiting");
+                    send(out, 200, JSON, status(true, null, authed, local));
+                    break;
+                }
+                case "/waiting/clear":
+                    if (!authed) { deny(out); break; }
+                    host.store().clearWaiting();
+                    host.onChanged("waiting");
                     send(out, 200, JSON, status(true, null, authed, local));
                     break;
                 case "/closing":
@@ -434,6 +463,15 @@ final class CallServer {
             JSONArray hist = new JSONArray();
             for (String n : host.store().history()) hist.put(n);
             o.put("history", hist);
+            JSONArray wait = new JSONArray();
+            for (CallStore.Waiting w : host.store().waiting()) {
+                JSONObject x = new JSONObject();
+                x.put("n", w.n);
+                x.put("items", w.items);
+                x.put("at", w.at);
+                wait.put(x);
+            }
+            o.put("waiting", wait);
             o.put("images", host.media().count());
             o.put("mediaVer", host.media().version());
             o.put("seq", host.store().seq());

@@ -102,6 +102,11 @@ final class MediaStore {
             throw e;
         }
         String ext = sniff(tmp);
+        if ("heif".equals(ext)) {
+            //noinspection ResultOfMethodCallIgnored
+            tmp.delete();
+            return "HEIC·AVIF 사진은 TV에서 열리지 않아 받을 수 없습니다. 호출기 앱의 [TV 이미지 추가]로 올리면 자동으로 변환됩니다";
+        }
         if (ext == null) {
             //noinspection ResultOfMethodCallIgnored
             tmp.delete();
@@ -139,7 +144,12 @@ final class MediaStore {
         }
         if (n < 12) return null;
         // 동영상
-        if (h[4] == 'f' && h[5] == 't' && h[6] == 'y' && h[7] == 'p') return "mp4";
+        if (h[4] == 'f' && h[5] == 't' && h[6] == 'y' && h[7] == 'p') {
+            // HEIC·AVIF 사진도 같은 상자 형식이라 브랜드로 구분 (TV 브라우저가 못 여는 경우가 많아 받지 않음)
+            String brand = new String(h, 8, 4, java.nio.charset.StandardCharsets.US_ASCII);
+            if (brand.matches("avi[fs]|hei[cxms]|hev[cx]|mif1|msf1")) return "heif";
+            return "mp4";
+        }
         if ((h[0] & 0xFF) == 0x1A && (h[1] & 0xFF) == 0x45 && (h[2] & 0xFF) == 0xDF && (h[3] & 0xFF) == 0xA3) return "webm";
         // 이미지 (실제로 열리는지 확인)
         BitmapFactory.Options o = new BitmapFactory.Options();

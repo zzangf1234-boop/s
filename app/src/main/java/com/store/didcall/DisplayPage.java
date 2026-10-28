@@ -34,6 +34,20 @@ final class DisplayPage {
         "#hist div{flex:1;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:6.5vh;white-space:nowrap;overflow:hidden;color:var(--num)}\n" +
         "#hist div:nth-child(n+6){display:none}\n" +
         "body.calm #hist div:nth-child(2){opacity:.86}body.calm #hist div:nth-child(3){opacity:.72}body.calm #hist div:nth-child(4){opacity:.58}body.calm #hist div:nth-child(5){opacity:.44}\n" +
+        "/* ── 키오스크 연동(조리중) 모드: 위 = 현재 호출(첫 번호 강조) + 최근, 아래 = 조리중 — 한 줄에 2개 ── */\n" +
+        "#secWait{display:none}\n" +
+        ".g2{flex:1;width:100%;display:grid;grid-template-columns:1fr 1fr;grid-auto-rows:1fr;min-height:0}\n" +
+        ".g2 div{display:flex;align-items:center;justify-content:center;font-weight:800;font-size:5.5vh;white-space:nowrap;overflow:hidden;color:var(--num)}\n" +
+        ".g2 div.now,#hist div.now{color:var(--cur)}\n" +
+        "#wait div{color:var(--label)}\n" +
+        ".more{color:var(--label);font-size:2.4vh;font-weight:700;margin-left:.6vh}\n" +
+        "body.kiosk .left{flex:80}\n" +
+        "body.kiosk .right{flex:20}\n" +
+        "body.kiosk #secCur{display:none}\n" +
+        "body.kiosk #secHist{flex:1;border-top:0;margin-top:0;padding-top:0}\n" +
+        "body.kiosk #secWait{display:flex;flex:1;border-top:.3vh solid var(--line);margin-top:1.5vh;padding-top:1vh}\n" +
+        "body.kiosk #hist{display:grid;grid-template-columns:1fr 1fr;grid-auto-rows:1fr}\n" +
+        "body.kiosk #hist div{display:flex!important;opacity:1!important;font-size:5.5vh}\n" +
         "#dot{position:absolute;top:1.2vh;right:1.2vh;width:1.4vh;height:1.4vh;border-radius:50%;background:#666}\n" +
         "#dot.ok{background:#4cd964}\n" +
         "#dot.bad{background:#ff5a5a;animation:blink 1s infinite}\n" +
@@ -55,6 +69,11 @@ final class DisplayPage {
         " #card{min-width:56vw!important;max-width:80vw!important;padding:1.4vh 3vw 2vh!important;border-radius:1.8vh!important}\n" +
         " #pl{font-size:2.6vh!important}\n" +
         " #ps{font-size:2.2vh!important}\n" +
+        " body.kiosk #secCur{display:flex;flex:36;min-height:0}\n" +
+        " body.kiosk #cur{flex:none;line-height:1.2}\n" +
+        " body.kiosk #secHist{display:none}\n" +
+        " body.kiosk #secWait{flex:66;margin-top:1vh}\n" +
+        " body.kiosk #wait{grid-template-columns:1fr 1fr 1fr 1fr}\n" +
         " #start b{font-size:3.6vh}\n" +
         " #start span{font-size:2vh}\n" +
         "}\n" +
@@ -98,7 +117,8 @@ final class DisplayPage {
         "  <div class=\"right\">\n" +
         "   <div id=\"dot\" title=\"호출기 연결 상태\"></div>\n" +
         "   <div class=\"sec\" id=\"secCur\"><div class=\"lbl\">현재 호출</div><div id=\"cur\">—</div></div>\n" +
-        "   <div class=\"sec\" id=\"secHist\"><div class=\"lbl\">최근 호출</div><div id=\"hist\"><div></div><div></div><div></div><div></div><div></div><div></div></div></div>\n" +
+        "   <div class=\"sec\" id=\"secHist\"><div class=\"lbl\" id=\"histLbl\">최근 호출</div><div id=\"hist\"><div></div><div></div><div></div><div></div><div></div><div></div></div></div>\n" +
+        "   <div class=\"sec\" id=\"secWait\"><div class=\"lbl\">조리중<span class=\"more\" id=\"waitMore\"></span></div><div id=\"wait\" class=\"g2\"></div></div>\n" +
         "  </div>\n" +
         " </div>\n" +
         "</div>\n" +
@@ -137,7 +157,8 @@ final class DisplayPage {
         " if(!S.voice||!ac||ac.state!=='running'){speak(text,rep);return}\n" +
         " loadBuf(url).then(function(buf){if(id!==playId)return;(function play(k){if(k<=0||id!==playId)return;voiceSrc=playBuf(buf,function(){if(id===playId)speakT=setTimeout(function(){play(k-1)},800)})})(rep)}).catch(function(){if(id===playId)speak(text,rep)})}\n" +
         "function pickVoice(){if(!('speechSynthesis' in window))return;var v=speechSynthesis.getVoices().filter(function(x){return /^ko/i.test(x.lang)});voice=v.filter(function(x){return /Natural|Online/i.test(x.name)})[0]||v[0]||null}\n" +
-        "if('speechSynthesis' in window){pickVoice();speechSynthesis.onvoiceschanged=pickVoice}\n" +
+        "if('speechSynthesis' in window){pickVoice();speechSynthesis.onvoiceschanged=pickVoice}\n";
+    private static final String P1 =
         "function speak(text,rep){if(!('speechSynthesis' in window)||rep<=0)return;speechSynthesis.cancel();(function say(k){if(k<=0)return;var u=new SpeechSynthesisUtterance(text);u.lang='ko-KR';if(voice)u.voice=voice;u.rate=.95;u.onend=function(){speakT=setTimeout(function(){say(k-1)},800)};speechSynthesis.speak(u)})(rep)}\n" +
         "// ── 글자 크기 맞춤 ──\n" +
         "function fit(el,vh){var s=vh;el.style.fontSize=s+'vh';while(s>2&&el.scrollWidth>el.clientWidth){s*=.92;el.style.fontSize=s+'vh'}}\n" +
@@ -145,15 +166,24 @@ final class DisplayPage {
         "// ── 상태 반영 ──\n" +
         "function render(s){\n" +
         " document.body.classList.toggle('calm',s.theme==='calm');\n" +
-        " $('cur').textContent=s.current||'—';fit($('cur'),portrait()?10:13);\n" +
+        " var kiosk=!!s.kioskOn;document.body.classList.toggle('kiosk',kiosk);\n" +
+        " $('cur').textContent=s.current||'—';fit($('cur'),portrait()?(kiosk?7:10):13);\n" +
+        " $('histLbl').textContent=kiosk?'현재 호출':'최근 호출';\n" +
         " var h=s.history||[],d=$('hist').children;\n" +
-        " for(var i=0;i<d.length;i++){d[i].textContent=h[i]||'';fit(d[i],portrait()?5:6.5)}\n" +
+        " // 키오스크 모드: '현재 호출' 칸 = 방금 부른 번호(노란색) + 최근 호출, 한 줄에 2개\n" +
+        " var list=kiosk?(s.current?[s.current]:[]).concat(h):h;\n" +
+        " for(var i=0;i<d.length;i++){d[i].textContent=list[i]||'';d[i].className=(kiosk&&i===0&&s.current)?'now':'';fit(d[i],kiosk?5.5:(portrait()?5:6.5))}\n" +
+        " renderWait(s.waiting||[]);\n" +
         " $('left').classList.toggle('cover',s.fit==='cover');\n" +
         " $('closedMsg').textContent=s.closeMsg||'';\n" +
         " $('closedSub').textContent=s.closeOn&&s.open?('영업 시간  '+s.open+' ~ '+s.close):'';\n" +
         " $('closed').classList.toggle('show',!!s.closed);\n" +
         " $('vv').muted=!s.videoSound;\n" +
         "}\n" +
+        "// 조리중: 들어온 순서대로, 넘치면 \"+N\"\n" +
+        "function renderWait(w){var box=$('wait'),max=8;while(box.children.length<max)box.appendChild(document.createElement('div'));\n" +
+        " for(var i=0;i<max;i++){var c=box.children[i];c.textContent=w[i]?w[i].n:'';fit(c,portrait()?4.5:5.5)}\n" +
+        " $('waitMore').textContent=w.length>max?('  +'+(w.length-max)):(w.length?'  '+w.length+'건':'')}\n" +
         "function apply(s){\n" +
         " var prevSlide=S.slide;S=s;render(s);\n" +
         " if(seq===null){seq=s.seq}else if(s.seq!==seq){seq=s.seq;if(s.current)announce(s.current)}\n" +
@@ -161,8 +191,7 @@ final class DisplayPage {
         " if(!s.current)hidePopup();\n" +
         " if(prevSlide!==undefined&&prevSlide!==s.slide)schedule();\n" +
         " if(s.mediaVer!==mediaVer){mediaVer=s.mediaVer;loadMedia()}\n" +
-        "}\n";
-    private static final String P1 =
+        "}\n" +
         "function poll(){fetch('/status?d=1',{cache:'no-store'}).then(function(r){return r.json()}).then(function(s){fails=0;$('dot').className='ok';apply(s)}).catch(function(){if(++fails>=3){$('dot').className='bad'}}).then(function(){setTimeout(poll,1000)})}\n" +
         "// ── 호출 팝업 ──\n" +
         "function announce(n){\n" +
@@ -236,5 +265,5 @@ final class DisplayPage {
         "})();\n" +
         "</script></body></html>\n";
 
-    static final String HTML = new StringBuilder(18390).append(P0).append(P1).toString();
+    static final String HTML = new StringBuilder(20375).append(P0).append(P1).toString();
 }

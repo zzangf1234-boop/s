@@ -25,8 +25,18 @@ final class CallStore {
     private int keepMinutes = 5;    // 0 이면 사라지지 않음
     private final LinkedList<Entry> history = new LinkedList<>();
 
+    /** 조리중(키오스크로 들어온 대기 주문) — 들어온 순서대로 */
+    static final class Waiting {
+        final String n, items;
+        final long at;
+        Waiting(String n, String items, long at) { this.n = n; this.items = items == null ? "" : items; this.at = at; }
+    }
+    private static final int MAX_WAITING = 60;
+    private final LinkedList<Waiting> waiting = new LinkedList<>();
+
     synchronized void call(String n) {
         long now = System.currentTimeMillis();
+        removeWaiting(n); // 조리중이던 번호를 부르면 목록에서 빠짐
         if (!current.isEmpty() && !current.equals(n)) {
             remove(current);
             history.addFirst(new Entry(current, currentAt));
@@ -53,6 +63,38 @@ final class CallStore {
         trim();
     }
 
+    // ───────────────────────── 조리중 ─────────────────────────
+    /** @return 새로 추가되면 true (이미 조리중이거나 방금 호출한 번호면 false) */
+    synchronized boolean addWaiting(String n, String items) {
+        if (!Net.validNumber(n)) return false;
+        for (Waiting w : waiting) if (w.n.equals(n)) return false;
+        if (n.equals(current) && System.currentTimeMillis() - currentAt < 30 * 60_000L) return false;
+        waiting.addLast(new Waiting(n, items, System.currentTimeMillis()));
+        while (waiting.size() > MAX_WAITING) waiting.removeFirst();
+        return true;
+    }
+
+    synchronized boolean removeWaiting(String n) {
+        Iterator<Waiting> it = waiting.iterator();
+        while (it.hasNext()) {
+            if (it.next().n.equals(n)) { it.remove(); return true; }
+        }
+        return false;
+    }
+
+    /** 가장 먼저 들어온 조리중 번호 (없으면 null) */
+    synchronized String oldestWaiting() {
+        return waiting.isEmpty() ? null : waiting.getFirst().n;
+    }
+
+    synchronized List<Waiting> waiting() {
+        return new ArrayList<>(waiting);
+    }
+
+    synchronized void clearWaiting() {
+        waiting.clear();
+    }
+
     synchronized String current() {
         return current;
     }
@@ -74,7 +116,7 @@ final class CallStore {
     }
 
     // ───────────────────────── 저장 / 복원 ─────────────────────────
-    /** 형식: seq|current|currentAt|번호:시각,번호:시각,... */
+    /** 형식: seq|current|currentAt|번호:시각,번호:시각,...|조리중(번호:시각:메뉴,...) */
     synchronized String save() {
         StringBuilder b = new StringBuilder();
         b.append(seq).append('|').append(current).append('|').append(currentAt).append('|');
@@ -82,6 +124,13 @@ final class CallStore {
         for (Entry e : history) {
             if (!first) b.append(',');
             b.append(e.n).append(':').append(e.at);
+            first = false;
+        }
+        b.append('|');
+        first = true;
+        for (Waiting w : waiting) {
+            if (!first) b.append(',');
+            b.append(w.n).append(':').append(w.at).append(':').append(enc(w.items));
             first = false;
         }
         return b.toString();
@@ -104,10 +153,27 @@ final class CallStore {
                     if (Net.validNumber(n)) history.add(new Entry(n, Long.parseLong(it.substring(c + 1))));
                 }
             }
+            waiting.clear();
+            if (p.length >= 5 && !p[4].isEmpty()) {
+                for (String it : p[4].split(",")) {
+                    String[] w = it.split(":", 3);
+                    if (w.length >= 2 && Net.validNumber(w[0])) {
+                        waiting.add(new Waiting(w[0], w.length > 2 ? dec(w[2]) : "", Long.parseLong(w[1])));
+                    }
+                }
+            }
             trim();
         } catch (Exception ignored) {
             // 저장값이 깨졌으면 빈 상태로 시작
         }
+    }
+
+    private static String enc(String s) {
+        try { return java.net.URLEncoder.encode(s, "UTF-8"); } catch (Exception e) { return ""; }
+    }
+
+    private static String dec(String s) {
+        try { return java.net.URLDecoder.decode(s, "UTF-8"); } catch (Exception e) { return ""; }
     }
 
     private void prune() {

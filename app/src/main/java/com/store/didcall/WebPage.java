@@ -52,8 +52,16 @@ final class WebPage {
         ".none{font-size:13px}\n" +
         "details .kset{grid-row:1/3;grid-column:2;width:auto;font-size:14px;padding:10px 12px;margin:0}\n" +
         "details .kset.on{background:#ff8a00}\n" +
+        "#waitbox{display:none;font-size:13px;color:#9aa3ad}\n" +
+        "#waitbox.show{display:block}\n" +
+        "#waitlist{display:flex;gap:6px;overflow-x:auto;padding:4px 0 2px}\n" +
+        "#waitlist button{flex:none;min-width:72px;font-size:22px;padding:10px 8px;background:#33404d;position:relative}\n" +
+        "#waitlist button:first-child{background:#ff8a00}\n" +
+        "#waitlist button i{position:absolute;top:-2px;right:3px;font-style:normal;font-size:13px;color:#ffd9a0}\n" +
+        "#klog{white-space:pre-line;color:#f2f2f2;font-size:13px;line-height:1.6}\n" +
         "</style></head><body>\n" +
         "<div class=\"now\"><span>현재 호출 <b id=\"cur\">-</b></span><span id=\"hist\"></span></div>\n" +
+        "<div id=\"waitbox\"><span id=\"waitlbl\">조리중</span><div id=\"waitlist\"></div></div>\n" +
         "<div id=\"authbar\"><span id=\"authtext\">🔐 이 기기는 아직 호출 권한이 없습니다. 호출기 폰에서 허용해야 번호 호출·설정을 할 수 있습니다.</span><br><button id=\"authbtn\" onclick=\"requestAuth()\">호출기 폰에 허용 요청 보내기</button></div>\n" +
         "<div id=\"disp\"></div>\n" +
         "<div class=\"pad\">\n" +
@@ -109,6 +117,15 @@ final class WebPage {
         "<button onclick=\"presetKeys(KEY_TENKEY)\">텐키형 기본값 (. 한 칸 지우기)</button>\n" +
         "<button onclick=\"presetKeys(KEY_BACKSPACE)\">백스페이스형 기본값 (← 한 칸 지우기)</button>\n" +
         "</details>\n" +
+        "<details id=\"kioskbox\"><summary>🧾 키오스크 주문 연동 (조리중)</summary>\n" +
+        "<label class=\"ck\" style=\"margin-top:12px\"><input type=\"checkbox\" id=\"kioskOn\">키오스크 주문서 받기 (조리중 목록)</label>\n" +
+        "<p class=\"note\">분기 프로그램의 '네트워크 프린터' 주소: <b id=\"kaddr\" style=\"color:#ffcc33\"></b></p>\n" +
+        "주방 프린터로 넘겨주기 (선택 · 예: 192.168.0.50:9100)<input id=\"relay\" placeholder=\"비워 두면 중계 안 함\">\n" +
+        "주문서에서 번호 앞에 붙은 글자<input id=\"orderLabel\">\n" +
+        "<button onclick=\"saveKiosk()\">저장</button>\n" +
+        "<button onclick=\"if(confirm('조리중 목록을 모두 지울까요?'))api('/waiting/clear').then(okMsg('조리중을 비웠습니다'))\">조리중 비우기</button>\n" +
+        "<p class=\"note\">최근 받은 주문서</p><div id=\"klog\">아직 없음</div>\n" +
+        "</details>\n" +
         "<details><summary>PC 브라우저를 호출 화면으로 쓰기</summary>\n" +
         "<p class=\"note\">TV에 연결된 윈도우 PC의 크롬·엣지에서 아래 주소를 열면 TV와 같은 호출 화면이 나옵니다.<br><b id=\"dispurl\" style=\"color:#ffcc33\"></b></p>\n" +
         "<button onclick=\"location.href='/display'\">이 브라우저에서 호출 화면 열기</button>\n" +
@@ -140,20 +157,40 @@ final class WebPage {
         " S=s;if(!capturing&&s.keys&&s.keys!==keysStr){keysStr=s.keys;KM=parseKeys(s.keys);renderKeys()}\n" +
         " $('cur').textContent=s.current||'-';\n" +
         " $('hist').textContent=(s.history||[]).slice(0,4).join(' · ');\n" +
+        " renderWait(s);\n" +
         " if(s.authed===false&&!asking)authBar('🔐 이 기기는 아직 호출 권한이 없습니다. 호출기 폰에서 허용해야 번호 호출·설정을 할 수 있습니다.',true);\n" +
         " if(s.authed)$('authbar').classList.remove('show');\n" +
         " $('closedNow').textContent=s.closed?'🌙 마감 표시 중':'영업 중';$('closeNowBtn').textContent=s.closed?'마감 표시 끄기':'지금 마감 표시';\n" +
-        " if(!loaded){$('tts').value=s.tts;$('sub').value=s.sub;$('rep').value=s.repeat;$('slide').value=s.slide;$('popup').value=s.popup;$('fit').value=s.fit;$('keep').value=s.keep;\n" +
+        " if(!loaded){$('tts').value=s.tts;$('sub').value=s.sub;$('rep').value=s.repeat;$('slide').value=s.slide;$('popup').value=s.popup;$('fit').value=s.fit;$('keep').value=s.keep;\n";
+    private static final String P1 =
         "  $('theme').value=s.theme||'vivid';$('videoSound').checked=!!s.videoSound;$('closeOn').checked=!!s.closeOn;$('open').value=s.open||'09:00';$('close').value=s.close||'22:00';$('closeMsg').value=s.closeMsg||'';\n" +
-        "  $('rate').value=s.rate||95;$('rateV').textContent=(s.rate||95)+'%';$('pitch').value=s.pitch||100;$('pitchV').textContent=(s.pitch||100)+'%';$('voiceMode').value=s.voiceMode||'tts';loaded=true}\n" +
+        "  $('rate').value=s.rate||95;$('rateV').textContent=(s.rate||95)+'%';$('pitch').value=s.pitch||100;$('pitchV').textContent=(s.pitch||100)+'%';$('voiceMode').value=s.voiceMode||'tts';\n" +
+        "  $('kioskOn').checked=!!s.kioskOn;$('relay').value=s.relay||'';$('orderLabel').value=s.orderLabel||'주문번호';loaded=true}\n" +
         "}\n" +
         "function api(p){return fetch(withTok(p)).then(function(r){return r.json()}).then(function(s){if(s.auth){requestAuth();return s}if(s.current!==undefined)render(s);if(!s.ok)msg(s.error||'오류');return s}).catch(function(){msg('호출기에 연결할 수 없습니다')})}\n" +
-        "function callNum(){if(!v){msg('번호를 입력하세요');return}var n=v;api('/call?n='+encodeURIComponent(n)).then(function(s){if(s&&s.ok){msg(n+'번 호출 완료');last=parseInt(n,10)||last;v='';show()}})}\n" +
+        "// ── 조리중 (키오스크 주문) : 눌러서 호출 · 길게 눌러(또는 ✕) 삭제 ──\n" +
+        "var waitSig='';\n" +
+        "function renderWait(s){var w=s.waiting||[],on=!!s.kioskOn;$('waitbox').classList.toggle('show',on);\n" +
+        " $('kaddr').textContent=location.hostname+' : '+(s.kioskPort||9100);\n" +
+        " var lg=s.kioskLog||[];$('klog').textContent=lg.length?lg.map(function(j){var t=new Date(j.time),hh=('0'+t.getHours()).slice(-2)+':'+('0'+t.getMinutes()).slice(-2)+':'+('0'+t.getSeconds()).slice(-2);\n" +
+        "  var r=!j.n?'번호 못 찾음':j.reprint?j.n+'번 재발행 (무시)':j.added?j.n+'번 추가':j.n+'번 (이미 있음)';if(j.items)r+=' · '+j.items;if(j.relay)r+=j.relay==='ok'?' · 주방 전달됨':' · ⚠ '+j.relay;return hh+'  '+r}).join('\\n'):'아직 없음';\n" +
+        " var sig=on+'|'+w.map(function(x){return x.n}).join(',');if(sig===waitSig)return;waitSig=sig;\n" +
+        " $('waitlbl').textContent=w.length?'조리중 '+w.length+'건 · 눌러서 호출 · ✕ 삭제 · 빈 칸으로 [호출] = 맨 앞 번호':'조리중 · 키오스크 주문이 들어오면 여기에 표시됩니다';\n" +
+        " var box=$('waitlist');box.innerHTML='';w.forEach(function(x){var b=document.createElement('button');b.textContent=x.n;b.title=x.items||'';\n" +
+        "  var del=document.createElement('i');del.textContent='✕';b.appendChild(del);\n" +
+        "  var held=false,tm=null;\n" +
+        "  function rm(){if(confirm(x.n+'번'+(x.items?' ('+x.items+')':'')+'을 조리중에서 지울까요? (호출하지 않음)'))api('/waiting/remove?n='+x.n).then(okMsg(x.n+'번을 지웠습니다'))}\n" +
+        "  b.addEventListener('touchstart',function(){held=false;tm=setTimeout(function(){held=true;rm()},650)},{passive:true});\n" +
+        "  b.addEventListener('touchend',function(){clearTimeout(tm)});b.addEventListener('touchmove',function(){clearTimeout(tm)},{passive:true});\n" +
+        "  b.oncontextmenu=function(e){e.preventDefault()};\n" +
+        "  b.onclick=function(e){if(held){held=false;return}if(e.target===del){rm();return}callWait(x.n)};box.appendChild(b)})}\n" +
+        "function callWait(n){api('/call?n='+encodeURIComponent(n)).then(function(s){if(s&&s.ok)msg(n+'번 호출 완료')})}\n" +
+        "function saveKiosk(){api('/config?kioskOn='+($('kioskOn').checked?1:0)+'&'+q('relay')+'&'+q('orderLabel')).then(okMsg('키오스크 연동 설정 저장됨'))}\n" +
+        "function callNum(){if(!v){if(S.kioskOn&&S.waiting&&S.waiting.length){api('/call?next=1').then(function(s){if(s&&s.ok)msg(s.current+'번 호출 완료')});return}msg('번호를 입력하세요');return}var n=v;api('/call?n='+encodeURIComponent(n)).then(function(s){if(s&&s.ok){msg(n+'번 호출 완료');last=parseInt(n,10)||last;v='';show()}})}\n" +
         "function next(){v=String((last||parseInt($('cur').textContent,10)||0)+1);show()}\n" +
         "function q(id){return id+'='+encodeURIComponent($(id).value)}\n" +
         "function saveCfg(){var p=['tts','sub','slide','popup','keep','fit','theme'].map(q);p.push('repeat='+$('rep').value,'videoSound='+($('videoSound').checked?1:0));api('/config?'+p.join('&')).then(okMsg('설정 저장됨'))}\n" +
-        "// ── 이미지·동영상 ──\n";
-    private static final String P1 =
+        "// ── 이미지·동영상 ──\n" +
         "function loadThumbs(){fetch('/media',{cache:'no-store'}).then(function(r){return r.json()}).then(function(d){var t=$('thumbs');t.innerHTML='';var items=d.items||[];if(!items.length){t.innerHTML='<div class=\"empty\">등록된 이미지·동영상이 없습니다</div>';return}\n" +
         " items.forEach(function(it){var n=it.name,e=document.createElement('div');e.className='thumb';\n" +
         "  e.innerHTML=(it.video?'<video muted preload=\"metadata\" src=\"/m/'+n+'#t=0.5\"></video><span class=\"badge\">▶ 동영상 '+Math.round(it.size/1048576)+'MB</span>':'<img loading=\"lazy\" src=\"/m/'+n+'\">')+'<div class=\"ctl\"><button data-m=\"-1\">◀</button><button data-d=\"1\">✕</button><button data-m=\"1\">▶</button></div>';\n" +
@@ -216,9 +253,10 @@ final class WebPage {
         " else if(act==='blank')api('/clear').then(okMsg('화면을 비웠습니다'));\n" +
         "});\n" +
         "renderKeys();\n" +
-        "$('dispurl').textContent='http://'+location.host+'/display';\n" +
+        "$('dispurl').textContent='http://'+location.host+'/display';\n";
+    private static final String P2 =
         "api('/status');setInterval(function(){fetch(withTok('/status'),{cache:'no-store'}).then(function(r){return r.json()}).then(render).catch(function(){})},3000);\n" +
         "</script></body></html>\n";
 
-    static final String HTML = new StringBuilder(20688).append(P0).append(P1).toString();
+    static final String HTML = new StringBuilder(24037).append(P0).append(P1).append(P2).toString();
 }

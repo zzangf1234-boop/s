@@ -34,6 +34,7 @@ import android.view.KeyEvent;
 import android.view.View;
 import android.view.WindowManager;
 import android.widget.Button;
+import android.widget.HorizontalScrollView;
 import android.widget.EditText;
 import android.widget.LinearLayout;
 import android.widget.SeekBar;
@@ -69,6 +70,9 @@ public class CallerActivity extends Activity implements VoiceRecorder.Host {
     private SharedPreferences prefs;
 
     private TextView statusView, addrView, inputView, currentView, msgView;
+    private LinearLayout waitBar, waitBox;
+    private TextView waitLabel;
+    private String waitSig = null;
     private String input = "";
     private int lastSent;
     private JSONObject last = new JSONObject();
@@ -222,6 +226,59 @@ public class CallerActivity extends Activity implements VoiceRecorder.Host {
         return row;
     }
 
+    /** 조리중 줄: 키오스크로 들어온 주문번호 (눌러서 호출 · 길게 눌러 삭제) */
+    private View makeWaiting() {
+        waitSig = null;
+        waitBar = new LinearLayout(this);
+        waitBar.setOrientation(LinearLayout.VERTICAL);
+        waitLabel = Ui.text(this, "조리중", 13, Ui.MUTED, true);
+        waitBar.addView(waitLabel);
+        HorizontalScrollView hs = new HorizontalScrollView(this);
+        hs.setHorizontalScrollBarEnabled(false);
+        waitBox = new LinearLayout(this);
+        hs.addView(waitBox, new HorizontalScrollView.LayoutParams(-2, -1));
+        waitBar.addView(hs, new LinearLayout.LayoutParams(-1, Ui.dp(this, 52)));
+        waitBar.setPadding(0, 0, 0, Ui.dp(this, 6));
+        waitBar.setVisibility(View.GONE);
+        return waitBar;
+    }
+
+    private void renderWaiting(JSONObject s) {
+        if (waitBar == null) return;
+        boolean on = s.optBoolean("kioskOn");
+        JSONArray w = s.optJSONArray("waiting");
+        StringBuilder sig = new StringBuilder(on ? "1" : "0");
+        if (w != null) for (int i = 0; i < w.length(); i++) sig.append(',').append(w.optJSONObject(i).optString("n"));
+        if (sig.toString().equals(waitSig)) return;
+        waitSig = sig.toString();
+        waitBar.setVisibility(on ? View.VISIBLE : View.GONE);
+        waitBox.removeAllViews();
+        int cnt = w == null ? 0 : w.length();
+        waitLabel.setText(cnt == 0 ? "조리중 · 키오스크 주문이 들어오면 여기에 표시됩니다"
+                : "조리중 " + cnt + "건 · 눌러서 호출 · 길게 눌러 삭제 · 빈 칸으로 [호출] = 맨 앞 번호");
+        for (int i = 0; i < cnt; i++) {
+            final JSONObject o = w.optJSONObject(i);
+            final String n = o.optString("n");
+            Button b = Ui.button(this, n, i == 0 ? Ui.ACCENT : Ui.KEY2, 22);
+            b.setOnClickListener(v -> { tap(v); callNumber(n); });
+            b.setOnLongClickListener(v -> {
+                tap(v);
+                String items = o.optString("items");
+                new AlertDialog.Builder(this, android.R.style.Theme_Material_Dialog_Alert)
+                        .setTitle(n + "번 주문")
+                        .setMessage((items.isEmpty() ? "" : items + "\n\n") + "조리중 목록에서 지울까요? (호출하지 않음)")
+                        .setPositiveButton("지우기", (d, x) -> request("/waiting/remove?n=" + n, n + "번을 조리중에서 지웠습니다"))
+                        .setNeutralButton("호출", (d, x) -> callNumber(n))
+                        .setNegativeButton("취소", null)
+                        .show();
+                return true;
+            });
+            LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(Ui.dp(this, 84), -1);
+            lp.rightMargin = Ui.dp(this, 6);
+            waitBox.addView(b, lp);
+        }
+    }
+
     private TextView makeMsg() {
         msgView = Ui.text(this, "", 15, Ui.MUTED, false);
         msgView.setGravity(Gravity.CENTER);
@@ -237,6 +294,7 @@ public class CallerActivity extends Activity implements VoiceRecorder.Host {
         root.setPadding(Ui.dp(this, 14), Ui.dp(this, 14), Ui.dp(this, 14), Ui.dp(this, 14));
         root.addView(header());
         root.addView(makeCurrent());
+        root.addView(makeWaiting());
         root.addView(makeInput(60), new LinearLayout.LayoutParams(-1, Ui.dp(this, 100)));
         LinearLayout.LayoutParams padLp = new LinearLayout.LayoutParams(-1, 0, 1f);
         padLp.topMargin = g;
@@ -264,6 +322,7 @@ public class CallerActivity extends Activity implements VoiceRecorder.Host {
         left.setOrientation(LinearLayout.VERTICAL);
         left.addView(header());
         left.addView(makeCurrent());
+        left.addView(makeWaiting());
         left.addView(makeInput(kp ? 64 : 90), new LinearLayout.LayoutParams(-1, 0, 1f));
         LinearLayout.LayoutParams aLp = new LinearLayout.LayoutParams(-1, Ui.dp(this, 52));
         aLp.topMargin = g;
@@ -367,8 +426,19 @@ public class CallerActivity extends Activity implements VoiceRecorder.Host {
 
     // ───────────────────────── 전송 ─────────────────────────
     private void sendCall() {
-        if (input.isEmpty()) { msg("번호를 입력하세요"); return; }
-        final String n = input;
+        if (input.isEmpty()) {
+            JSONArray w = last.optJSONArray("waiting");
+            if (last.optBoolean("kioskOn") && w != null && w.length() > 0) {
+                request("/call?next=1", null, null); // 조리중 맨 앞 번호 호출
+            } else {
+                msg("번호를 입력하세요");
+            }
+            return;
+        }
+        callNumber(input);
+    }
+
+    private void callNumber(final String n) {
         try {
             request("/call?n=" + URLEncoder.encode(n, "UTF-8"), n + "번 호출 완료", () -> {
                 try { lastSent = Integer.parseInt(n); } catch (NumberFormatException ignored) {}
@@ -392,7 +462,7 @@ public class CallerActivity extends Activity implements VoiceRecorder.Host {
                 ui.post(() -> {
                     applyStatus(s);
                     if (s.optBoolean("ok")) {
-                        msg("✔ " + okMsg);
+                        msg("✔ " + (okMsg != null ? okMsg : s.optString("current") + "번 호출 완료"));
                         if (onOk != null) onOk.run();
                     } else {
                         msg(s.optString("error", "오류가 발생했습니다"));
@@ -438,6 +508,7 @@ public class CallerActivity extends Activity implements VoiceRecorder.Host {
     private void applyStatus(JSONObject s) {
         if (s == null || !s.has("current")) return;
         last = s;
+        renderWaiting(s);
         setStatus(true, s.optInt("displays", 0));
         String cur = s.optString("current", "");
         if (currentView != null) {
@@ -559,6 +630,7 @@ public class CallerActivity extends Activity implements VoiceRecorder.Host {
                 "🗣 목소리 설정 (목소리·속도·높낮이)",
                 "🎙 내 목소리 녹음",
                 "🌙 영업 시간 · 마감 안내",
+                "🧾 키오스크 주문 연동 (조리중)",
                 "↻ 화면 방향 (세로 / 가로)",
                 "⌨ 키 설정 (키패드·키보드)",
                 "🔐 허용된 기기",
@@ -579,21 +651,22 @@ public class CallerActivity extends Activity implements VoiceRecorder.Host {
                         case 4: new VoiceRecorder(this, this).showList(last.optString("tts", HostService.DEF_TTS),
                                 last.optString("closeMsg", HostService.DEF_CLOSE_MSG), "rec".equals(last.optString("voiceMode"))); break;
                         case 5: showClosing(); break;
-                        case 6: chooseOrientation(); break;
-                        case 7: showKeySettings(); break;
-                        case 8: showDevices(); break;
-                        case 9:
+                        case 6: showKiosk(); break;
+                        case 7: chooseOrientation(); break;
+                        case 8: showKeySettings(); break;
+                        case 9: showDevices(); break;
+                        case 10:
                             try { startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse(BASE + "/"))); }
                             catch (Exception e) { msg("브라우저를 열 수 없습니다"); }
                             break;
-                        case 10: showConnectInfo(); break;
-                        case 11:
+                        case 11: showConnectInfo(); break;
+                        case 12:
                             lastSent = 0;
                             prefs.edit().putInt(K_LAST, 0).apply();
                             msg("번호를 초기화했습니다");
                             break;
-                        case 12: askBatteryExemption(); break;
-                        case 13:
+                        case 13: askBatteryExemption(); break;
+                        case 14:
                             HostService.stop(this);
                             prefs.edit().remove(MainActivity.KEY_MODE).apply();
                             startActivity(new Intent(this, MainActivity.class).putExtra(MainActivity.EXTRA_CHOOSE, true));
@@ -844,6 +917,85 @@ public class CallerActivity extends Activity implements VoiceRecorder.Host {
                 .show();
     }
 
+    // ───────────────────────── 키오스크 주문 연동 ─────────────────────────
+    private void showKiosk() {
+        LinearLayout box = new LinearLayout(this);
+        box.setOrientation(LinearLayout.VERTICAL);
+        int pad = Ui.dp(this, 20);
+        box.setPadding(pad, pad / 2, pad, 0);
+
+        final Switch on = new Switch(this);
+        on.setText("키오스크 주문서 받기 (조리중 목록)");
+        on.setTextColor(Color.WHITE);
+        on.setChecked(last.optBoolean("kioskOn"));
+        box.addView(on);
+
+        String ip = Net.localIp();
+        TextView addr = Ui.text(this, "\n분기 프로그램의 '네트워크 프린터' 주소를 이렇게 넣으세요\n"
+                + ip + " : " + last.optInt("kioskPort", PrintReceiver.PORT), 15, Ui.YELLOW, true);
+        box.addView(addr);
+
+        box.addView(Ui.text(this, "\n주방 프린터로 넘겨주기 (선택 · 예: 192.168.0.50:9100)\n그 출력이 원래 주방 프린터로 가던 것이면 프린터 주소를 넣으세요. 비우면 넘기지 않습니다.", 13, Ui.MUTED, false));
+        final EditText relay = new EditText(this);
+        relay.setText(last.optString("relay", ""));
+        relay.setHint("비워 두면 중계 안 함");
+        relay.setTextColor(Color.WHITE);
+        relay.setHintTextColor(Ui.MUTED);
+        relay.setSingleLine(true);
+        relay.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_VARIATION_URI);
+        box.addView(relay);
+
+        box.addView(Ui.text(this, "\n주문서에서 번호 앞에 붙은 글자", 13, Ui.MUTED, false));
+        final EditText label = new EditText(this);
+        label.setText(last.optString("orderLabel", "주문번호"));
+        label.setTextColor(Color.WHITE);
+        label.setSingleLine(true);
+        box.addView(label);
+
+        StringBuilder log = new StringBuilder("\n최근 받은 주문서\n");
+        JSONArray arr = last.optJSONArray("kioskLog");
+        if (arr == null || arr.length() == 0) {
+            log.append("아직 없음");
+        } else {
+            java.text.SimpleDateFormat f = new java.text.SimpleDateFormat("HH:mm:ss", java.util.Locale.KOREA);
+            for (int i = 0; i < arr.length(); i++) {
+                JSONObject j = arr.optJSONObject(i);
+                String n = j.optString("n");
+                log.append(f.format(new java.util.Date(j.optLong("time")))).append("  ");
+                if (n.isEmpty()) log.append("번호 못 찾음");
+                else if (j.optBoolean("reprint")) log.append(n).append("번 재발행 (무시)");
+                else if (j.optBoolean("added")) log.append(n).append("번 추가");
+                else log.append(n).append("번 (이미 있음)");
+                if (!j.optString("items").isEmpty()) log.append(" · ").append(j.optString("items"));
+                String r = j.optString("relay");
+                if (!r.isEmpty()) log.append("ok".equals(r) ? " · 주방 전달됨" : " · ⚠ " + r);
+                log.append('\n');
+            }
+        }
+        TextView lv = Ui.text(this, log.toString(), 13, Ui.TEXT, false);
+        box.addView(lv);
+
+        android.widget.ScrollView sv = new android.widget.ScrollView(this);
+        sv.addView(box);
+        new AlertDialog.Builder(this, android.R.style.Theme_Material_Dialog_Alert)
+                .setTitle("🧾 키오스크 주문 연동")
+                .setView(sv)
+                .setPositiveButton("저장", (d, w) -> call("/config?kioskOn=" + (on.isChecked() ? "1" : "0")
+                        + "&relay=" + enc(relay.getText().toString().trim().replace(" ", ""))
+                        + "&orderLabel=" + enc(label.getText().toString()), () -> msg("✔ 키오스크 연동 설정을 저장했습니다")))
+                .setNeutralButton("조리중 비우기", (d, w) -> confirmClearWaiting())
+                .setNegativeButton("닫기", null)
+                .show();
+    }
+
+    private void confirmClearWaiting() {
+        new AlertDialog.Builder(this, android.R.style.Theme_Material_Dialog_Alert)
+                .setMessage("조리중 목록을 모두 지울까요?")
+                .setPositiveButton("모두 지우기", (d, w) -> request("/waiting/clear", "조리중 목록을 비웠습니다"))
+                .setNegativeButton("취소", null)
+                .show();
+    }
+
     private interface TimeSet { void on(String hhmm); }
 
     private void pickTime(String cur, final TimeSet cb) {
@@ -926,8 +1078,11 @@ public class CallerActivity extends Activity implements VoiceRecorder.Host {
                     byte[] jpg = shrink(uris.get(k));
                     JSONObject s = new JSONObject(Http.post(BASE + "/media", jpg, "image/jpeg"));
                     if (s.optBoolean("ok")) ok++; else lastErr = s.optString("error");
+                } catch (OutOfMemoryError e) {
+                    lastErr = "사진이 너무 커서 처리하지 못했습니다 (더 작은 사진으로 시도해 주세요)";
                 } catch (Throwable e) {
-                    lastErr = "이미지를 처리하지 못했습니다";
+                    lastErr = e.getMessage() != null && e.getMessage().matches("(?s).*[가-힣].*")
+                            ? e.getMessage() : "이미지를 처리하지 못했습니다";
                 }
             }
             final int okCount = ok;
@@ -999,27 +1154,38 @@ public class CallerActivity extends Activity implements VoiceRecorder.Host {
         });
     }
 
-    /** 사진을 최대 2560px, 32비트 색상, 품질 92 JPEG로 (TV에서 선명하게) + 회전 정보 반영 */
+    /**
+     * 사진을 최대 2560px, 품질 92 JPEG로 (TV에서 선명하게) + 회전 정보 반영.
+     * 메모리를 아끼려고 처음부터 줄여서 읽고, 투명 배경(PNG)은 그 자리에서 흰색으로 채움.
+     */
     private byte[] shrink(Uri uri) throws Exception {
         BitmapFactory.Options o = new BitmapFactory.Options();
         o.inJustDecodeBounds = true;
         try (InputStream in = getContentResolver().openInputStream(uri)) {
             BitmapFactory.decodeStream(in, null, o);
         }
-        if (o.outWidth <= 0) throw new Exception("not image");
+        if (o.outWidth <= 0) throw new Exception("이 사진 형식은 열 수 없습니다 (HEIC·AVIF면 jpg/png로 바꿔 올리거나 브라우저 관리 페이지를 이용하세요)");
         int sample = 1;
         while (Math.max(o.outWidth, o.outHeight) / (sample * 2) >= MAX_SIDE) sample *= 2;
         BitmapFactory.Options d = new BitmapFactory.Options();
         d.inSampleSize = sample;
+        d.inPreferredConfig = Bitmap.Config.ARGB_8888;
+        d.inMutable = true;
         Bitmap bm;
         try (InputStream in = getContentResolver().openInputStream(uri)) {
             bm = BitmapFactory.decodeStream(in, null, d);
         }
-        if (bm == null) throw new Exception("decode failed");
+        if (bm == null) throw new Exception("사진을 읽지 못했습니다");
+
+        // 투명 배경은 흰색으로 (새 그림을 만들지 않고 그 자리에서)
+        if (bm.hasAlpha() && bm.isMutable()) {
+            new Canvas(bm).drawColor(Color.WHITE, android.graphics.PorterDuff.Mode.DST_OVER);
+            bm.setHasAlpha(false);
+        }
 
         float scale = Math.min(1f, (float) MAX_SIDE / Math.max(bm.getWidth(), bm.getHeight()));
         Matrix m = new Matrix();
-        m.postScale(scale, scale);
+        if (scale < 1f) m.postScale(scale, scale);
         if (Build.VERSION.SDK_INT >= 24) {
             try (InputStream in = getContentResolver().openInputStream(uri)) {
                 int ori = new ExifInterface(in).getAttributeInt(ExifInterface.TAG_ORIENTATION, ExifInterface.ORIENTATION_NORMAL);
@@ -1029,17 +1195,11 @@ public class CallerActivity extends Activity implements VoiceRecorder.Host {
             } catch (Exception ignored) {
             }
         }
-        Bitmap out = Bitmap.createBitmap(bm, 0, 0, bm.getWidth(), bm.getHeight(), m, true);
-        // 투명 배경(PNG)은 흰색으로 채움 (32비트 색상 유지)
-        Bitmap flat = Bitmap.createBitmap(out.getWidth(), out.getHeight(), Bitmap.Config.ARGB_8888);
-        Canvas c = new Canvas(flat);
-        c.drawColor(Color.WHITE);
-        c.drawBitmap(out, 0, 0, null);
+        Bitmap out = m.isIdentity() ? bm : Bitmap.createBitmap(bm, 0, 0, bm.getWidth(), bm.getHeight(), m, true);
+        if (out != bm) bm.recycle();
         ByteArrayOutputStream bo = new ByteArrayOutputStream();
-        flat.compress(Bitmap.CompressFormat.JPEG, 92, bo);
-        if (out != bm) out.recycle();
-        bm.recycle();
-        flat.recycle();
+        out.compress(Bitmap.CompressFormat.JPEG, 92, bo);
+        out.recycle();
         return bo.toByteArray();
     }
 
