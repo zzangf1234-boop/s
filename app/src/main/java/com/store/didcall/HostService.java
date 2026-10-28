@@ -652,7 +652,7 @@ public class HostService extends Service implements CallServer.Host {
             File f = recordedVoice(n);
             if (f != null) return f;
         }
-        return ttsFile(ttsTemplate().replace("{n}", n), voiceName(), rate(), pitch());
+        return ttsFile(ttsTemplate().replace("{n}", Net.spoken(n)), voiceName(), rate(), pitch());
     }
 
     @Override

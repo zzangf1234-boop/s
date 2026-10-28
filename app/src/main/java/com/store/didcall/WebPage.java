@@ -71,7 +71,7 @@ final class WebPage {
         "<button onclick=\"del()\">←</button><button onclick=\"k('0')\">0</button><button onclick=\"v='';show()\">C</button>\n" +
         "</div>\n" +
         "<button class=\"call\" onclick=\"callNum()\">호출</button>\n" +
-        "<div class=\"row\"><button onclick=\"api('/recall').then(okMsg('재호출했습니다'))\">재호출</button><button onclick=\"next()\">다음 번호</button><button onclick=\"api('/clear').then(okMsg('화면을 비웠습니다'))\">화면 비우기</button></div>\n" +
+        "<div class=\"row\" style=\"grid-template-columns:repeat(4,1fr)\"><button onclick=\"tilde()\">~ 연속</button><button onclick=\"api('/recall').then(okMsg('재호출했습니다'))\">재호출</button><button onclick=\"next()\">다음 번호</button><button onclick=\"api('/clear').then(okMsg('화면을 비웠습니다'))\">화면 비우기</button></div>\n" +
         "<div id=\"msg\"></div>\n" +
         "<details id=\"imgbox\"><summary>TV 이미지·동영상 (왼쪽 화면)</summary>\n" +
         "<div class=\"thumbs\" id=\"thumbs\"></div>\n" +
@@ -136,7 +136,9 @@ final class WebPage {
         "var v='',last=0,loaded=false,S={};\n" +
         "function $(i){return document.getElementById(i)}\n" +
         "function show(){$('disp').textContent=v}\n" +
-        "function k(d){if(v.length<6){v+=d;show()}}\n" +
+        "function k(d){var i=v.indexOf('~');if((i<0?v.length:v.length-i-1)<6){v+=d;show()}}\n" +
+        "// 연속 호출: 번호 뒤에 ~ 한 번 (예: 1~4). 빈 칸이면 다음 번호부터\n" +
+        "function tilde(){if(v&&v.indexOf('~')<0&&/^[0-9]+$/.test(v))v+='~';else if(!v){var n=(last||parseInt($('cur').textContent,10)||0)+1;v=n+'~'}show()}\n" +
         "function del(){v=v.slice(0,-1);show()}\n" +
         "function msg(t){$('msg').textContent=t}\n" +
         "function okMsg(t){return function(s){if(s&&s.ok)msg(t)}}\n" +
@@ -159,10 +161,10 @@ final class WebPage {
         " $('hist').textContent=(s.history||[]).slice(0,4).join(' · ');\n" +
         " renderWait(s);\n" +
         " if(s.authed===false&&!asking)authBar('🔐 이 기기는 아직 호출 권한이 없습니다. 호출기 폰에서 허용해야 번호 호출·설정을 할 수 있습니다.',true);\n" +
-        " if(s.authed)$('authbar').classList.remove('show');\n" +
-        " $('closedNow').textContent=s.closed?'🌙 마감 표시 중':'영업 중';$('closeNowBtn').textContent=s.closed?'마감 표시 끄기':'지금 마감 표시';\n" +
-        " if(!loaded){$('tts').value=s.tts;$('sub').value=s.sub;$('rep').value=s.repeat;$('slide').value=s.slide;$('popup').value=s.popup;$('fit').value=s.fit;$('keep').value=s.keep;\n";
+        " if(s.authed)$('authbar').classList.remove('show');\n";
     private static final String P1 =
+        " $('closedNow').textContent=s.closed?'🌙 마감 표시 중':'영업 중';$('closeNowBtn').textContent=s.closed?'마감 표시 끄기':'지금 마감 표시';\n" +
+        " if(!loaded){$('tts').value=s.tts;$('sub').value=s.sub;$('rep').value=s.repeat;$('slide').value=s.slide;$('popup').value=s.popup;$('fit').value=s.fit;$('keep').value=s.keep;\n" +
         "  $('theme').value=s.theme||'vivid';$('videoSound').checked=!!s.videoSound;$('closeOn').checked=!!s.closeOn;$('open').value=s.open||'09:00';$('close').value=s.close||'22:00';$('closeMsg').value=s.closeMsg||'';\n" +
         "  $('rate').value=s.rate||95;$('rateV').textContent=(s.rate||95)+'%';$('pitch').value=s.pitch||100;$('pitchV').textContent=(s.pitch||100)+'%';$('voiceMode').value=s.voiceMode||'tts';\n" +
         "  $('kioskOn').checked=!!s.kioskOn;$('relay').value=s.relay||'';$('orderLabel').value=s.orderLabel||'주문번호';loaded=true}\n" +
@@ -186,7 +188,7 @@ final class WebPage {
         "  b.onclick=function(e){if(held){held=false;return}if(e.target===del){rm();return}callWait(x.n)};box.appendChild(b)})}\n" +
         "function callWait(n){api('/call?n='+encodeURIComponent(n)).then(function(s){if(s&&s.ok)msg(n+'번 호출 완료')})}\n" +
         "function saveKiosk(){api('/config?kioskOn='+($('kioskOn').checked?1:0)+'&'+q('relay')+'&'+q('orderLabel')).then(okMsg('키오스크 연동 설정 저장됨'))}\n" +
-        "function callNum(){if(!v){if(S.kioskOn||(S.waiting&&S.waiting.length)){api('/call?next=1').then(function(s){if(s&&s.ok)msg(s.current+'번 호출 완료')});return}msg('번호를 입력하세요');return}var n=v;api('/call?n='+encodeURIComponent(n)).then(function(s){if(s&&s.ok){msg(n+'번 호출 완료');last=parseInt(n,10)||last;v='';show()}})}\n" +
+        "function callNum(){if(!v){if(S.kioskOn||(S.waiting&&S.waiting.length)){api('/call?next=1').then(function(s){if(s&&s.ok)msg(s.current+'번 호출 완료')});return}msg('번호를 입력하세요');return}var n=v.replace(/~$/,'');api('/call?n='+encodeURIComponent(n)).then(function(s){if(s&&s.ok){msg(n+'번 호출 완료');last=parseInt(n.split('~').pop(),10)||last;v='';show()}})}\n" +
         "function next(){v=String((last||parseInt($('cur').textContent,10)||0)+1);show()}\n" +
         "function q(id){return id+'='+encodeURIComponent($(id).value)}\n" +
         "function saveCfg(){var p=['tts','sub','slide','popup','keep','fit','theme'].map(q);p.push('repeat='+$('rep').value,'videoSound='+($('videoSound').checked?1:0));api('/config?'+p.join('&')).then(okMsg('설정 저장됨'))}\n" +
@@ -222,9 +224,9 @@ final class WebPage {
         "function saveClosing(){api('/config?closeOn='+($('closeOn').checked?1:0)+'&'+['open','close','closeMsg'].map(q).join('&')).then(okMsg('영업 시간 저장됨'))}\n" +
         "function toggleClosed(){api('/closing?on='+(S.closed?0:1)).then(function(s){if(s&&s.ok)msg(s.closed?'🌙 마감을 안내했습니다':'마감 표시를 껐습니다')})}\n" +
         "// ── 키 설정 (호출기 앱과 공유, 키 이름은 KeyboardEvent.code) ──\n" +
-        "var ACTS=[['call','호출'],['next','다음 번호 입력'],['recall','재호출'],['blank','화면 비우기'],['clear','입력 전체 삭제'],['back','한 칸 지우기']];\n" +
-        "var KEY_TENKEY='call=NumpadEnter,Enter;next=NumpadAdd;recall=NumpadMultiply;blank=NumpadDivide;clear=NumpadSubtract,Escape;back=NumpadDecimal,NumpadComma,Backspace';\n" +
-        "var KEY_BACKSPACE='call=NumpadEnter,Enter;next=NumpadAdd;recall=NumpadMultiply;blank=NumpadDivide;clear=NumpadSubtract,NumpadDecimal,NumpadComma,Escape;back=Backspace';\n" +
+        "var ACTS=[['call','호출'],['next','다음 번호 입력'],['recall','재호출'],['blank','화면 비우기'],['range','연속 호출 ~ (예: 1~4)'],['clear','입력 전체 삭제'],['back','한 칸 지우기']];\n" +
+        "var KEY_TENKEY='call=NumpadEnter,Enter;next=NumpadAdd;recall=NumpadMultiply;blank=NumpadDivide;range=NumpadSubtract,Minus;clear=Escape;back=NumpadDecimal,NumpadComma,Backspace';\n" +
+        "var KEY_BACKSPACE='call=NumpadEnter,Enter;next=NumpadAdd;recall=NumpadMultiply;blank=NumpadDivide;range=NumpadSubtract,Minus;clear=NumpadDecimal,NumpadComma,Escape;back=Backspace';\n" +
         "var KM=parseKeys(KEY_TENKEY),keysStr='',capturing=null;\n" +
         "function parseKeys(str){var m={};ACTS.forEach(function(a){m[a[0]]=[]});(str||'').split(';').forEach(function(p){var i=p.indexOf('=');if(i<1)return;var a=p.slice(0,i);if(!m[a])return;p.slice(i+1).split(',').forEach(function(c){if(c&&m[a].indexOf(c)<0)m[a].push(c)})});return m}\n" +
         "function serKeys(m){return ACTS.map(function(a){return a[0]+'='+m[a[0]].join(',')}).join(';')}\n" +
@@ -243,13 +245,14 @@ final class WebPage {
         " var code=e.code||'';\n" +
         " if(capturing){if(!code||MODS.test(code))return;e.preventDefault();if(e.repeat)return;for(var a in KM){var i=KM[a].indexOf(code);if(i>=0)KM[a].splice(i,1)}KM[capturing].push(code);var done=capturing;capturing=null;saveKeys();msg('\"'+keyLabel(code)+'\" → '+ACTS.filter(function(x){return x[0]===done})[0][1]);return}\n" +
         " var t=e.target.tagName;if(t==='INPUT'||t==='SELECT'||t==='TEXTAREA'||e.ctrlKey||e.altKey||e.metaKey)return;\n" +
-        " var act=actionFor(code),m=act?null:/^(Numpad|Digit)([0-9])$/.exec(code);\n" +
+        " var act=actionFor(code),m=act?null:/^(Numpad|Digit)([0-9])$/.exec(code);\n";
+    private static final String P2 =
         " if(!act&&!m)return; // 텐키는 NumLock 상태와 상관없이 키 위치(code)로 판단\n" +
         " e.preventDefault();if(document.activeElement&&document.activeElement.blur)document.activeElement.blur();\n" +
         " if(m){if(!e.repeat)window.k(m[2]);return}\n" +
         " if(act==='back')del();else if(act==='clear'){v='';show()}else if(e.repeat)return;\n" +
-        " else if(act==='call')callNum();else if(act==='next')next();\n";
-    private static final String P2 =
+        " else if(act==='range')tilde();\n" +
+        " else if(act==='call')callNum();else if(act==='next')next();\n" +
         " else if(act==='recall')api('/recall').then(okMsg('재호출했습니다'));\n" +
         " else if(act==='blank')api('/clear').then(okMsg('화면을 비웠습니다'));\n" +
         "});\n" +
@@ -258,5 +261,5 @@ final class WebPage {
         "api('/status');setInterval(function(){fetch(withTok('/status'),{cache:'no-store'}).then(function(r){return r.json()}).then(render).catch(function(){})},3000);\n" +
         "</script></body></html>\n";
 
-    static final String HTML = new StringBuilder(24356).append(P0).append(P1).append(P2).toString();
+    static final String HTML = new StringBuilder(24792).append(P0).append(P1).append(P2).toString();
 }

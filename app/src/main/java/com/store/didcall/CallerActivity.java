@@ -190,6 +190,9 @@ public class CallerActivity extends Activity implements VoiceRecorder.Host {
         inputView.setBackground(Ui.round(this, 0xFF000000, 14));
         inputView.setLetterSpacing(0.1f);
         inputView.setSingleLine(true);
+        if (Build.VERSION.SDK_INT >= 26) { // "123~130" 처럼 길어지면 글자를 줄여 한 줄에
+            inputView.setAutoSizeTextTypeUniformWithConfiguration(20, (int) sp, 2, android.util.TypedValue.COMPLEX_UNIT_SP);
+        }
         return inputView;
     }
 
@@ -220,6 +223,7 @@ public class CallerActivity extends Activity implements VoiceRecorder.Host {
 
     private LinearLayout makeAux() {
         LinearLayout row = new LinearLayout(this);
+        addAux(row, "~ 연속", v -> key("~"));
         addAux(row, "재호출", v -> request("/recall", "재호출했습니다"));
         addAux(row, "다음 번호", v -> { input = String.valueOf(lastSent + 1); showInput(); });
         addAux(row, "화면 비우기", v -> request("/clear", "TV 화면을 비웠습니다"));
@@ -373,8 +377,14 @@ public class CallerActivity extends Activity implements VoiceRecorder.Host {
             if (!input.isEmpty()) input = input.substring(0, input.length() - 1);
         } else if ("C".equals(k)) {
             input = "";
-        } else if (input.length() < 6) {
-            input += k;
+        } else if ("~".equals(k)) {
+            // 연속 호출: 번호 뒤에 한 번만 (예: 1~4)
+            if (!input.isEmpty() && !input.contains("~") && input.matches("[0-9]+")) input += "~";
+            else if (input.isEmpty() && lastSent > 0) input = (lastSent + 1) + "~"; // 빈 칸이면 다음 번호부터
+        } else {
+            int dash = input.indexOf('~');
+            int len = dash < 0 ? input.length() : input.length() - dash - 1;
+            if (len < 6) input += k;
         }
         showInput();
     }
@@ -416,6 +426,7 @@ public class CallerActivity extends Activity implements VoiceRecorder.Host {
             case "call": if (!repeat) sendCall(); break;
             case "back": key("←"); break;
             case "clear": key("C"); break;
+            case "range": if (!repeat) key("~"); break;
             case "next": if (!repeat) { input = String.valueOf(lastSent + 1); showInput(); } break;
             case "recall": if (!repeat) request("/recall", "재호출했습니다"); break;
             case "blank": if (!repeat) request("/clear", "TV 화면을 비웠습니다"); break;
@@ -439,10 +450,12 @@ public class CallerActivity extends Activity implements VoiceRecorder.Host {
         callNumber(input);
     }
 
-    private void callNumber(final String n) {
+    private void callNumber(String raw) {
+        if (raw.endsWith("~")) raw = raw.substring(0, raw.length() - 1); // "5~" 만 입력하고 호출 → 5번
+        final String n = raw;
         try {
             request("/call?n=" + URLEncoder.encode(n, "UTF-8"), n + "번 호출 완료", () -> {
-                try { lastSent = Integer.parseInt(n); } catch (NumberFormatException ignored) {}
+                try { lastSent = Integer.parseInt(n.substring(n.indexOf('~') + 1)); } catch (NumberFormatException ignored) {}
                 prefs.edit().putInt(K_LAST, lastSent).apply();
                 input = "";
                 showInput();

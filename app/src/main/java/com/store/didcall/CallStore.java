@@ -38,15 +38,16 @@ final class CallStore {
     private static final long RECENT_MS = 60 * 60_000L;
     private final java.util.HashMap<String, Long> calledAt = new java.util.HashMap<>();
 
+    /** n: 한 번호 또는 연속 호출 "1~4" */
     synchronized void call(String n) {
         long now = System.currentTimeMillis();
-        removeWaiting(n); // 조리중이던 번호를 부르면 목록에서 빠짐
-        calledAt.put(n, now);
-        if (!current.isEmpty() && !current.equals(n)) {
-            remove(current);
-            history.addFirst(new Entry(current, currentAt));
+        List<String> mem = Net.members(n);
+        for (String m : mem) {
+            removeWaiting(m); // 조리중이던 번호를 부르면 목록에서 빠짐
+            calledAt.put(m, now);
         }
-        remove(n);
+        if (!current.isEmpty() && !current.equals(n)) pushCurrentToHistory();
+        for (String m : mem) remove(m);
         current = n;
         currentAt = now;
         seq++;
@@ -59,11 +60,22 @@ final class CallStore {
         seq++;
     }
 
-    synchronized void clear() {
-        if (!current.isEmpty()) {
-            remove(current);
-            history.addFirst(new Entry(current, currentAt));
+    /** 지금 호출(연속 호출이면 그 번호들 각각)을 최근 호출로 옮김 */
+    private void pushCurrentToHistory() {
+        List<String> mem = Net.members(current);
+        for (int i = mem.size() - 1; i >= 0; i--) { // 최근 호출에 1 2 3 4 순서로 보이게
+            remove(mem.get(i));
+            history.addFirst(new Entry(mem.get(i), currentAt));
         }
+    }
+
+    /** 지금 호출에 들어있는 번호들 */
+    synchronized List<String> currentMembers() {
+        return Net.members(current);
+    }
+
+    synchronized void clear() {
+        if (!current.isEmpty()) pushCurrentToHistory();
         current = "";
         trim();
     }
@@ -152,9 +164,9 @@ final class CallStore {
             String[] p = s.split("\\|", -1);
             if (p.length < 4) return;
             seq = Long.parseLong(p[0]);
-            current = Net.validNumber(p[1]) ? p[1] : "";
+            current = Net.validCall(p[1]) ? p[1] : "";
             currentAt = Long.parseLong(p[2]);
-            if (!current.isEmpty()) calledAt.put(current, currentAt);
+            for (String m : Net.members(current)) calledAt.put(m, currentAt);
             history.clear();
             if (!p[3].isEmpty()) {
                 for (String it : p[3].split(",")) {

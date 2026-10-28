@@ -171,8 +171,9 @@ final class DisplayPage {
         " $('histLbl').textContent=kiosk?'현재 호출':'최근 호출';\n" +
         " var h=s.history||[],d=$('hist').children;\n" +
         " // 키오스크 모드: '현재 호출' 칸 = 방금 부른 번호(노란색) + 최근 호출, 한 줄에 2개\n" +
-        " var list=kiosk?(s.current?[s.current]:[]).concat(h):h;\n" +
-        " for(var i=0;i<d.length;i++){d[i].textContent=list[i]||'';d[i].className=(kiosk&&i===0&&s.current)?'now':'';fit(d[i],kiosk?5.5:(portrait()?5:6.5))}\n" +
+        " var now=s.current?((s.group&&s.group.length)?s.group:[s.current]):[];\n" +
+        " var list=kiosk?now.concat(h):h;\n" +
+        " for(var i=0;i<d.length;i++){d[i].textContent=list[i]||'';d[i].className=(kiosk&&i<now.length)?'now':'';fit(d[i],kiosk?5.5:(portrait()?5:6.5))}\n" +
         " renderWait(s.waiting||[]);\n" +
         " $('left').classList.toggle('cover',s.fit==='cover');\n" +
         " $('closedMsg').textContent=s.closeMsg||'';\n" +
@@ -196,16 +197,18 @@ final class DisplayPage {
         "// ── 호출 팝업 ──\n" +
         "function announce(n){\n" +
         " var c=$('card'),ov=$('ov');\n" +
-        " $('pn').textContent=n;$('ps').textContent=S.sub||'';$('ps').style.display=(S.sub||'').trim()?'':'none';\n" +
+        " var grp=(S.group&&S.group.length>1)?S.group:null;\n" +
+        " // 연속 호출(1~4): 팝업에 1 · 2 · 3 · 4, 음성은 \"1번 2번 3번 4번 …\"\n" +
+        " $('pn').textContent=grp?grp.join(' · '):n;$('ps').textContent=S.sub||'';$('ps').style.display=(S.sub||'').trim()?'':'none';\n" +
         " clearTimeout(hideT);clearInterval(flashT);clearTimeout(speakT);\n" +
         " ov.classList.add('show');requestAnimationFrame(function(){ov.classList.add('vis')});\n" +
         " c.classList.remove('pop','y');void c.offsetWidth;c.classList.add('pop');\n" +
-        " var base=portrait()?14:24;fit($('pn'),n.length<=3?base:n.length==4?base*.84:base*.67);\n" +
+        " var base=portrait()?14:24,shown=$('pn').textContent;fit($('pn'),shown.length<=3?base:shown.length==4?base*.84:grp?base*.67:base*.67);\n" +
         " var k=6;setTimeout(function(){flashT=setInterval(function(){if(k--<=0){clearInterval(flashT);c.classList.remove('y');return}c.classList.toggle('y')},380)},500);\n" +
         " hideT=setTimeout(hidePopup,(S.popup||10)*1000);\n" +
         " duck(true);\n" +
         " chime();\n" +
-        " var text=(S.tts||'{n}번 고객님').split('{n}').join(n);\n" +
+        " var text=(S.tts||'{n}번 고객님').split('{n}').join(grp?grp.join('번 '):n);\n" +
         " stopVoice();var vid=playId;speakT=setTimeout(function(){if(vid===playId)playVoice('/voice?n='+encodeURIComponent(n),text,S.repeat==null?2:S.repeat)},1300);\n" +
         "}\n" +
         "function hidePopup(){var ov=$('ov');if(!ov.classList.contains('show'))return;clearTimeout(hideT);clearInterval(flashT);$('card').classList.remove('y');ov.classList.remove('vis');duck(false);setTimeout(function(){if(!ov.classList.contains('vis'))ov.classList.remove('show')},320)}\n" +
@@ -265,5 +268,5 @@ final class DisplayPage {
         "})();\n" +
         "</script></body></html>\n";
 
-    static final String HTML = new StringBuilder(20375).append(P0).append(P1).toString();
+    static final String HTML = new StringBuilder(20611).append(P0).append(P1).toString();
 }

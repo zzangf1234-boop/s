@@ -17,21 +17,31 @@ import java.util.Map;
 final class KeyMap {
     static final String K_KEYS = "keys";
 
-    static final String[] ACTIONS = {"call", "next", "recall", "blank", "clear", "back"};
-    static final String[] LABELS = {"호출", "다음 번호 입력", "재호출", "화면 비우기", "입력 전체 삭제", "한 칸 지우기"};
+    static final String[] ACTIONS = {"call", "next", "recall", "blank", "range", "clear", "back"};
+    static final String[] LABELS = {"호출", "다음 번호 입력", "재호출", "화면 비우기", "연속 호출 ~ (예: 1~4)", "입력 전체 삭제", "한 칸 지우기"};
 
     /** 텐키형 (백스페이스 없음): . = 한 칸 지우기 */
     static final String TENKEY = "call=NumpadEnter,Enter;next=NumpadAdd;recall=NumpadMultiply;blank=NumpadDivide;"
-            + "clear=NumpadSubtract,Escape;back=NumpadDecimal,NumpadComma,Backspace";
+            + "range=NumpadSubtract,Minus;clear=Escape;back=NumpadDecimal,NumpadComma,Backspace";
     /** 백스페이스형: Backspace = 한 칸 지우기, . = 전체 삭제 */
     static final String BACKSPACE = "call=NumpadEnter,Enter;next=NumpadAdd;recall=NumpadMultiply;blank=NumpadDivide;"
-            + "clear=NumpadSubtract,NumpadDecimal,NumpadComma,Escape;back=Backspace";
+            + "range=NumpadSubtract,Minus;clear=NumpadDecimal,NumpadComma,Escape;back=Backspace";
 
     private KeyMap() {}
 
     static String current(SharedPreferences p) {
         String s = p.getString(K_KEYS, null);
-        if (s != null && !s.isEmpty()) return s;
+        if (s != null && !s.isEmpty()) {
+            if (!s.contains("range=")) {
+                // v1.2 이전 설정: '-' 키를 연속 호출(~)로 옮김
+                Map<String, List<String>> m = parse(s);
+                assign(m, "range", "NumpadSubtract");
+                assign(m, "range", "Minus");
+                s = serialize(m);
+                p.edit().putString(K_KEYS, s).apply();
+            }
+            return s;
+        }
         // 이전 버전의 '키패드 종류' 설정을 이어받음
         return "backspace".equals(p.getString(HostService.K_KEYPAD, "tenkey")) ? BACKSPACE : TENKEY;
     }

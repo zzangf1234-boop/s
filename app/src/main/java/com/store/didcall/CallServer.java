@@ -264,7 +264,7 @@ final class CallServer {
                 }
                 case "/voice": {
                     String n = q.get("n");
-                    File f = Net.validNumber(n) ? host.voiceFor(n) : null;
+                    File f = Net.validCall(n) ? host.voiceFor(n) : null;
                     if (f == null) send(out, 404, TEXT, "Not Found");
                     else sendFile(out, f, "audio/wav", null, false);
                     break;
@@ -326,7 +326,12 @@ final class CallServer {
                             break;
                         }
                     }
-                    if (!Net.validNumber(n)) {
+                    if (n != null && n.matches("[0-9]{1,6}\\s*[-~]\\s*[0-9]{1,6}")) n = n.replaceAll("\\s*[-~]\\s*", "~");
+                    if (n != null && n.contains("~") && !Net.validCall(n)) {
+                        send(out, 400, JSON, status(false, "연속 호출은 작은 번호~큰 번호, 최대 " + Net.MAX_GROUP + "개까지 (예: 1~4)", authed, local));
+                        break;
+                    }
+                    if (!Net.validCall(n)) {
                         send(out, 400, JSON, status(false, "번호는 숫자/영문 1~6자", authed, local));
                         break;
                     }
@@ -489,6 +494,9 @@ final class CallServer {
             o.put("ok", ok);
             if (error != null) o.put("error", error);
             o.put("current", host.store().current());
+            JSONArray grp = new JSONArray();
+            for (String m : host.store().currentMembers()) grp.put(m);
+            o.put("group", grp);
             JSONArray hist = new JSONArray();
             for (String n : host.store().history()) hist.put(n);
             o.put("history", hist);

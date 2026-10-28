@@ -239,8 +239,15 @@ final class Sound {
      * @return PCM, 필요한 조각이 하나라도 없으면 null
      */
     static short[] stitch(File clipDir, String number, boolean usePrefix) {
-        List<String> parts = readNumber(number);
-        if (parts == null) return null;
+        // 연속 호출 "1~4": 일 · 이 · 삼 · 사 + 뒤 문장 (번호 사이 짧은 쉼)
+        List<String> parts = new ArrayList<>();
+        for (String m : Net.members(number)) {
+            List<String> p = readNumber(m);
+            if (p == null) return null;
+            if (!parts.isEmpty()) parts.add("|");
+            parts.addAll(p);
+        }
+        if (parts.isEmpty()) return null;
         List<short[]> seq = new ArrayList<>();
         List<Integer> gaps = new ArrayList<>();
         if (usePrefix) {
@@ -250,6 +257,10 @@ final class Sound {
             gaps.add(RATE * 15 / 100);
         }
         for (int i = 0; i < parts.size(); i++) {
+            if ("|".equals(parts.get(i))) { // 번호와 번호 사이
+                gaps.set(gaps.size() - 1, RATE * 30 / 100);
+                continue;
+            }
             short[] c = readWav(new File(clipDir, parts.get(i) + ".wav"));
             if (c == null) return null;
             seq.add(c);

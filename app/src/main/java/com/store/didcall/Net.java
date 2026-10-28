@@ -52,4 +52,44 @@ final class Net {
     static boolean validNumber(String n) {
         return n != null && n.matches("[0-9A-Za-z\\-]{1,6}");
     }
+
+    /** 연속 호출 최대 개수 */
+    static final int MAX_GROUP = 10;
+
+    /** "1~4" → [1,2,3,4] (숫자만, 앞이 뒤보다 작거나 같고 최대 10개). 연속 호출이 아니면 null */
+    static java.util.List<String> group(String s) {
+        if (s == null || !s.matches("[0-9]{1,6}~[0-9]{1,6}")) return null;
+        String[] p = s.split("~");
+        long a = Long.parseLong(p[0]), b = Long.parseLong(p[1]);
+        if (a > b || b - a + 1 > MAX_GROUP) return null;
+        java.util.List<String> out = new java.util.ArrayList<>();
+        for (long i = a; i <= b; i++) out.add(String.valueOf(i));
+        return out;
+    }
+
+    /** 한 번호 또는 연속 호출 "1~4" */
+    static boolean validCall(String s) {
+        return validNumber(s) || (s != null && s.matches("[0-9]{1,6}~[0-9]{1,6}") && group(s) != null);
+    }
+
+    /** 호출에 들어있는 번호들 (한 번호면 [n]) */
+    static java.util.List<String> members(String s) {
+        java.util.List<String> g = group(s);
+        if (g != null) return g;
+        java.util.List<String> one = new java.util.ArrayList<>();
+        if (s != null && !s.isEmpty()) one.add(s);
+        return one;
+    }
+
+    /** 안내 문구의 {n} 자리에 넣을 말: "1~4" → "1번 2번 3번 4" (문구의 "{n}번" 과 이어져 "…4번") */
+    static String spoken(String s) {
+        java.util.List<String> g = group(s);
+        if (g == null) return s;
+        StringBuilder b = new StringBuilder();
+        for (int i = 0; i < g.size(); i++) {
+            if (i > 0) b.append("번 ");
+            b.append(g.get(i));
+        }
+        return b.toString();
+    }
 }
