@@ -186,7 +186,7 @@ final class WebPage {
         "  b.onclick=function(e){if(held){held=false;return}if(e.target===del){rm();return}callWait(x.n)};box.appendChild(b)})}\n" +
         "function callWait(n){api('/call?n='+encodeURIComponent(n)).then(function(s){if(s&&s.ok)msg(n+'번 호출 완료')})}\n" +
         "function saveKiosk(){api('/config?kioskOn='+($('kioskOn').checked?1:0)+'&'+q('relay')+'&'+q('orderLabel')).then(okMsg('키오스크 연동 설정 저장됨'))}\n" +
-        "function callNum(){if(!v){if(S.kioskOn&&S.waiting&&S.waiting.length){api('/call?next=1').then(function(s){if(s&&s.ok)msg(s.current+'번 호출 완료')});return}msg('번호를 입력하세요');return}var n=v;api('/call?n='+encodeURIComponent(n)).then(function(s){if(s&&s.ok){msg(n+'번 호출 완료');last=parseInt(n,10)||last;v='';show()}})}\n" +
+        "function callNum(){if(!v){if(S.kioskOn||(S.waiting&&S.waiting.length)){api('/call?next=1').then(function(s){if(s&&s.ok)msg(s.current+'번 호출 완료')});return}msg('번호를 입력하세요');return}var n=v;api('/call?n='+encodeURIComponent(n)).then(function(s){if(s&&s.ok){msg(n+'번 호출 완료');last=parseInt(n,10)||last;v='';show()}})}\n" +
         "function next(){v=String((last||parseInt($('cur').textContent,10)||0)+1);show()}\n" +
         "function q(id){return id+'='+encodeURIComponent($(id).value)}\n" +
         "function saveCfg(){var p=['tts','sub','slide','popup','keep','fit','theme'].map(q);p.push('repeat='+$('rep').value,'videoSound='+($('videoSound').checked?1:0));api('/config?'+p.join('&')).then(okMsg('설정 저장됨'))}\n" +
@@ -258,5 +258,5 @@ final class WebPage {
         "api('/status');setInterval(function(){fetch(withTok('/status'),{cache:'no-store'}).then(function(r){return r.json()}).then(render).catch(function(){})},3000);\n" +
         "</script></body></html>\n";
 
-    static final String HTML = new StringBuilder(24065).append(P0).append(P1).append(P2).toString();
+    static final String HTML = new StringBuilder(24067).append(P0).append(P1).append(P2).toString();
 }

@@ -427,9 +427,10 @@ public class CallerActivity extends Activity implements VoiceRecorder.Host {
     // ───────────────────────── 전송 ─────────────────────────
     private void sendCall() {
         if (input.isEmpty()) {
-            JSONArray w = last.optJSONArray("waiting");
-            if (last.optBoolean("kioskOn") && w != null && w.length() > 0) {
-                request("/call?next=1", null, null); // 조리중 맨 앞 번호 호출
+            // 빈 칸 + 호출(엔터) = 조리중에서 가장 먼저 들어온 번호. 화면이 꺼져 있다 켜져 목록이 오래됐을 수 있으니
+            // 판단은 서버에 맡김 (조리중이 비어 있으면 서버가 "조리중인 번호가 없습니다" 로 답함)
+            if (last.optBoolean("kioskOn") || last.optJSONArray("waiting") != null && last.optJSONArray("waiting").length() > 0) {
+                request("/call?next=1", null, null);
             } else {
                 msg("번호를 입력하세요");
             }
