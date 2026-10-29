@@ -276,6 +276,8 @@ public class HostService extends Service implements CallServer.Host {
     private int keepMinutes() { return prefs.getInt(K_KEEP, 5); }
     private String chimeType() { return prefs.getString(K_CHIME, "dingdong"); }
     private String voiceMode() { return prefs.getString(K_VOICE_MODE, "tts"); }
+    static final String K_PACK_PHRASE = "packPhrase";
+    private String packPhrase() { return prefs.getString(K_PACK_PHRASE, VoicePack.DEF_PHRASE); }
     private String voiceName() { return prefs.getString(K_VOICE, ""); }
     private int rate() { return prefs.getInt(K_RATE, 95); }
     private int pitch() { return prefs.getInt(K_PITCH, 100); }
@@ -315,13 +317,14 @@ public class HostService extends Service implements CallServer.Host {
         o.put("popup", popupSeconds());
         o.put("fit", fit());
         o.put("keep", keepMinutes());
-        o.put("voice", fileTtsReady || ("rec".equals(voiceMode()) && recReady()));
+        o.put("voice", fileTtsReady || ("rec".equals(voiceMode()) && recReady()) || VoicePack.fromMode(voiceMode()) != null);
         o.put("keys", KeyMap.current(prefs));
         o.put("chime", chimeType());
         o.put("chimeVer", prefs.getInt(K_CHIME_VER, 0));
         o.put("customChime", customChime() != null);
         o.put("theme", prefs.getString(K_THEME, "vivid"));
         o.put("voiceMode", voiceMode());
+        o.put("packPhrase", packPhrase());
         o.put("voiceName", voiceName());
         o.put("rate", rate());
         o.put("pitch", pitch());
@@ -365,7 +368,11 @@ public class HostService extends Service implements CallServer.Host {
             e.putInt(K_CHIME_VER, prefs.getInt(K_CHIME_VER, 0) + 1);
         }
         if (q.containsKey("theme")) e.putString(K_THEME, "calm".equals(q.get("theme")) ? "calm" : "vivid");
-        if (q.containsKey("voiceMode")) e.putString(K_VOICE_MODE, "rec".equals(q.get("voiceMode")) ? "rec" : "tts");
+        if (q.containsKey("voiceMode")) {
+            String m = q.get("voiceMode");
+            e.putString(K_VOICE_MODE, "rec".equals(m) ? "rec" : VoicePack.fromMode(m) != null ? m : "tts");
+        }
+        if (q.containsKey("packPhrase") && VoicePack.knownPhrase(q.get("packPhrase"))) e.putString(K_PACK_PHRASE, q.get("packPhrase"));
         if (q.containsKey("voiceName")) {
             String v = q.get("voiceName");
             if (v.length() <= 120 && v.matches("[A-Za-z0-9_\\-#.:@ ]*")) e.putString(K_VOICE, v);
@@ -648,6 +655,11 @@ public class HostService extends Service implements CallServer.Host {
     @Override
     public File voiceFor(String n) {
         if (n == null || n.isEmpty()) return null;
+        String pack = VoicePack.fromMode(voiceMode());
+        if (pack != null) {
+            File f = packVoice(pack, packPhrase(), n);
+            if (f != null) return f; // 1000 이상·영문 번호는 기계 음성으로
+        }
         if ("rec".equals(voiceMode())) {
             File f = recordedVoice(n);
             if (f != null) return f;
@@ -657,6 +669,15 @@ public class HostService extends Service implements CallServer.Host {
 
     @Override
     public File closingVoice() {
+        String pack = VoicePack.fromMode(voiceMode());
+        if (pack != null) {
+            File f = new File(voiceDir, "pk_" + pack + "_closing.wav");
+            if (f.length() > 44) return f;
+            short[] pcm = VoicePack.clip(this::openAsset, pack, "s_closing");
+            if (pcm != null) {
+                try { Sound.writeWav(f, pcm, Sound.RATE); return f; } catch (IOException ignored) {}
+            }
+        }
         if ("rec".equals(voiceMode())) {
             File f = new File(recDir(this), "closing.wav");
             if (f.isFile()) return f;
@@ -668,6 +689,30 @@ public class HostService extends Service implements CallServer.Host {
     public File previewVoice(String n, String voice, int rate, int pitch) {
         return ttsFile(ttsTemplate().replace("{n}", n), voice == null ? voiceName() : voice,
                 Math.max(50, Math.min(200, rate)), Math.max(50, Math.min(200, pitch)));
+    }
+
+    private InputStream openAsset(String path) throws IOException {
+        return getAssets().open(path);
+    }
+
+    @Override
+    public File packVoice(String pack, String phrase, String n) {
+        if (!VoicePack.known(pack)) return null;
+        String ph = VoicePack.knownPhrase(phrase) ? phrase : VoicePack.DEF_PHRASE;
+        File f = new File(voiceDir, "pk_" + pack + "_" + ph + "_" + n.replace('~', '-') + ".wav");
+        if (f.length() > 44) return f;
+        short[] pcm = VoicePack.build(this::openAsset, pack, n, ph);
+        if (pcm == null) return null;
+        try {
+            pruneVoices();
+            File tmp = new File(voiceDir, f.getName() + ".part");
+            Sound.writeWav(tmp, pcm, Sound.RATE);
+            //noinspection ResultOfMethodCallIgnored
+            tmp.renameTo(f);
+            return f.length() > 44 ? f : null;
+        } catch (IOException e) {
+            return null;
+        }
     }
 
     /** '내 목소리' 녹음 조각을 이어 붙인 안내 음성 (조각이 모자라면 null) */
@@ -815,6 +860,22 @@ public class HostService extends Service implements CallServer.Host {
             chimes.put(e);
         }
         o.put("chimes", chimes);
+        JSONArray packs = new JSONArray();
+        for (String[] pk : VoicePack.PACKS) {
+            JSONObject e = new JSONObject();
+            e.put("mode", "pack:" + pk[0]);
+            e.put("label", pk[1]);
+            packs.put(e);
+        }
+        o.put("packs", packs);
+        JSONArray phrases = new JSONArray();
+        for (String[] ph : VoicePack.PHRASES) {
+            JSONObject e = new JSONObject();
+            e.put("name", ph[0]);
+            e.put("label", ph[1]);
+            phrases.put(e);
+        }
+        o.put("phrases", phrases);
         return o;
     }
 }

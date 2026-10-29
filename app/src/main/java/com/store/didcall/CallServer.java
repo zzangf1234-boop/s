@@ -59,6 +59,8 @@ final class CallServer {
         File closingVoice();
         /** 목소리 미리 듣기 (저장 전 설정값으로) */
         File previewVoice(String n, String voice, int rate, int pitch);
+        /** 앱에 들어 있는 녹음 목소리(승아 등)로 만든 안내 음성, 못 만들면 null */
+        File packVoice(String pack, String phrase, String n);
         /** 알림음 WAV (type 이 null 이면 현재 설정). 직접 올린 소리면 null */
         byte[] chimeWav(String type);
         /** 직접 올린 알림음 파일, 없으면 null */
@@ -416,7 +418,8 @@ final class CallServer {
                     if (!authed) { deny(out); break; }
                     int rate = parseInt(q.get("rate"), 100), pitch = parseInt(q.get("pitch"), 100);
                     String n = Net.validNumber(q.get("n")) ? q.get("n") : "123";
-                    File f = host.previewVoice(n, q.get("voice"), rate, pitch);
+                    String pack = VoicePack.fromMode(q.get("mode"));
+                    File f = pack != null ? host.packVoice(pack, q.get("phrase"), n) : host.previewVoice(n, q.get("voice"), rate, pitch);
                     if (f == null) send(out, 404, TEXT, "Not Found");
                     else sendFile(out, f, "audio/wav", null, false);
                     break;

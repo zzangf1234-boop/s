@@ -777,27 +777,91 @@ public class CallerActivity extends Activity implements VoiceRecorder.Host {
             if (voices.optJSONObject(i).optString("name").equals(voiceName)) voiceLabel = voices.optJSONObject(i).optString("label");
         }
         final int rate = last.optInt("rate", 95), pitch = last.optInt("pitch", 100);
-        String[] items = {
-                "음성 엔진:  " + engineLabel,
-                "목소리:  " + voiceLabel,
-                "말하기 속도:  " + rate + "%",
-                "목소리 높낮이:  " + pitch + "%",
-                "▶ 51번 호출 미리 듣기",
-                "↺ 속도·높낮이 기본값으로",
-        };
+        final String mode = last.optString("voiceMode", "tts");
+        final JSONArray packs = v.optJSONArray("packs"), phrases = v.optJSONArray("phrases");
+        String modeLabel = "rec".equals(mode) ? "내 목소리 (녹음)" : "기계 음성";
+        if (packs != null) for (int i = 0; i < packs.length(); i++) {
+            if (packs.optJSONObject(i).optString("mode").equals(mode)) modeLabel = packs.optJSONObject(i).optString("label") + " (녹음된 목소리)";
+        }
+        final boolean packMode = mode.startsWith("pack:");
+        String phraseLabel = "";
+        if (phrases != null) for (int i = 0; i < phrases.length(); i++) {
+            if (phrases.optJSONObject(i).optString("name").equals(last.optString("packPhrase", "p_food"))) phraseLabel = phrases.optJSONObject(i).optString("label");
+        }
+        final List<String> items = new ArrayList<>();
+        final List<Runnable> acts = new ArrayList<>();
+        items.add("목소리 종류:  " + modeLabel);
+        acts.add(() -> chooseVoiceMode(packs, mode));
+        if (packMode) {
+            items.add("안내 문장:  " + phraseLabel);
+            acts.add(() -> choosePhrase(phrases));
+        } else {
+            items.add("음성 엔진:  " + engineLabel);
+            acts.add(() -> chooseEngine(engines));
+            items.add("목소리:  " + voiceLabel);
+            acts.add(() -> chooseVoice(voices, voiceName, rate, pitch));
+            items.add("말하기 속도:  " + rate + "%");
+            acts.add(() -> chooseLevel("말하기 속도", "rate", rate, voiceName, rate, pitch));
+            items.add("목소리 높낮이:  " + pitch + "%");
+            acts.add(() -> chooseLevel("목소리 높낮이", "pitch", pitch, voiceName, rate, pitch));
+        }
+        items.add("▶ 51번 호출 미리 듣기");
+        acts.add(() -> { play("/voice?n=51&v=" + System.currentTimeMillis()); showVoiceSettings(); });
+        if (!packMode) {
+            items.add("↺ 속도·높낮이 기본값으로");
+            acts.add(() -> call("/config?rate=95&pitch=100", () -> { msg("기본값으로 되돌렸습니다"); showVoiceSettings(); }));
+        }
         new AlertDialog.Builder(this, android.R.style.Theme_Material_Dialog_Alert)
-                .setTitle("목소리 설정" + (v.optBoolean("ready") ? "" : " (음성 엔진 준비 중…)"))
-                .setItems(items, (d, which) -> {
-                    switch (which) {
-                        case 0: chooseEngine(engines); break;
-                        case 1: chooseVoice(voices, voiceName, rate, pitch); break;
-                        case 2: chooseLevel("말하기 속도", "rate", rate, voiceName, rate, pitch); break;
-                        case 3: chooseLevel("목소리 높낮이", "pitch", pitch, voiceName, rate, pitch); break;
-                        case 4: play("/voice?n=51"); showVoiceSettings(); break;
-                        default: call("/config?rate=95&pitch=100", () -> { msg("기본값으로 되돌렸습니다"); showVoiceSettings(); });
-                    }
-                })
+                .setTitle("목소리 설정" + (packMode || v.optBoolean("ready") ? "" : " (음성 엔진 준비 중…)"))
+                .setItems(items.toArray(new String[0]), (d, which) -> acts.get(which).run())
                 .setNegativeButton("닫기", null)
+                .show();
+    }
+
+    /** 목소리 종류: 기계 음성 / 승아 등 녹음된 목소리 / 내 목소리 */
+    private void chooseVoiceMode(final JSONArray packs, String cur) {
+        final List<String> modes = new ArrayList<>();
+        final List<String> labels = new ArrayList<>();
+        modes.add("tts"); labels.add("기계 음성 (폰의 음성 엔진)");
+        if (packs != null) for (int i = 0; i < packs.length(); i++) {
+            modes.add(packs.optJSONObject(i).optString("mode"));
+            labels.add(packs.optJSONObject(i).optString("label") + " (녹음된 목소리 · 1~999번)");
+        }
+        modes.add("rec"); labels.add("내 목소리 (⚙ → 내 목소리 녹음에서 녹음)");
+        int checked = Math.max(0, modes.indexOf(cur));
+        new AlertDialog.Builder(this, android.R.style.Theme_Material_Dialog_Alert)
+                .setTitle("목소리 종류")
+                .setSingleChoiceItems(labels.toArray(new String[0]), checked, (d, which) -> {
+                    d.dismiss();
+                    final String m = modes.get(which);
+                    call("/config?voiceMode=" + enc(m), () -> {
+                        msg("✔ 목소리: " + labels.get(which));
+                        play("/voice?n=51&v=" + System.currentTimeMillis());
+                        showVoiceSettings();
+                    });
+                })
+                .setNegativeButton("취소", null)
+                .show();
+    }
+
+    private void choosePhrase(final JSONArray phrases) {
+        if (phrases == null || phrases.length() == 0) return;
+        String[] labels = new String[phrases.length()];
+        int checked = 0;
+        for (int i = 0; i < phrases.length(); i++) {
+            labels[i] = phrases.optJSONObject(i).optString("label");
+            if (phrases.optJSONObject(i).optString("name").equals(last.optString("packPhrase", "p_food"))) checked = i;
+        }
+        new AlertDialog.Builder(this, android.R.style.Theme_Material_Dialog_Alert)
+                .setTitle("번호 뒤 안내 문장")
+                .setSingleChoiceItems(labels, checked, (d, which) -> {
+                    d.dismiss();
+                    call("/config?packPhrase=" + phrases.optJSONObject(which).optString("name"), () -> {
+                        play("/voice?n=51&v=" + System.currentTimeMillis());
+                        showVoiceSettings();
+                    });
+                })
+                .setNegativeButton("취소", null)
                 .show();
     }
 

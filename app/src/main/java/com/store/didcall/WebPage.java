@@ -96,11 +96,12 @@ final class WebPage {
         "<br>알림음<select id=\"chime\"></select>\n" +
         "<div class=\"two\"><button class=\"sm\" onclick=\"new Audio('/chime?type='+$('chime').value).play()\">▶ 알림음 듣기</button>\n" +
         "<label class=\"up\" style=\"font-size:14px;padding:8px;margin-top:4px\">📁 내 소리 파일<input type=\"file\" accept=\"audio/*\" hidden onchange=\"uploadChime(this.files[0]);this.value=''\"></label></div>\n" +
-        "<br>음성 방식<select id=\"voiceMode\"><option value=\"tts\">기계 음성</option><option value=\"rec\">내 목소리 (녹음은 호출기 앱 ⚙ → 내 목소리 녹음)</option></select>\n" +
-        "음성 엔진<select id=\"ttsEngine\"></select>\n" +
+        "<br>음성 방식<select id=\"voiceMode\" onchange=\"voiceModeUi()\"><option value=\"tts\">기계 음성</option><option value=\"rec\">내 목소리 (녹음은 호출기 앱 ⚙ → 내 목소리 녹음)</option></select>\n" +
+        "<div id=\"packbox\" style=\"display:none\">번호 뒤 안내 문장<select id=\"packPhrase\"></select></div>\n" +
+        "<div id=\"ttsbox\">음성 엔진<select id=\"ttsEngine\"></select>\n" +
         "목소리<select id=\"voiceName\"></select>\n" +
         "말하기 속도 <b id=\"rateV\"></b><input id=\"rate\" type=\"range\" min=\"50\" max=\"200\" step=\"5\" oninput=\"$('rateV').textContent=this.value+'%'\">\n" +
-        "목소리 높낮이 <b id=\"pitchV\"></b><input id=\"pitch\" type=\"range\" min=\"50\" max=\"200\" step=\"5\" oninput=\"$('pitchV').textContent=this.value+'%'\">\n" +
+        "목소리 높낮이 <b id=\"pitchV\"></b><input id=\"pitch\" type=\"range\" min=\"50\" max=\"200\" step=\"5\" oninput=\"$('pitchV').textContent=this.value+'%'\"></div>\n" +
         "<div class=\"two\"><button class=\"sm\" onclick=\"previewVoice()\">▶ 51번 미리 듣기</button><button class=\"sm\" onclick=\"saveSound()\">저장</button></div>\n" +
         "</details>\n" +
         "<details id=\"closebox\"><summary>영업 시간 · 마감 안내</summary>\n" +
@@ -159,10 +160,10 @@ final class WebPage {
         " S=s;if(!capturing&&s.keys&&s.keys!==keysStr){keysStr=s.keys;KM=parseKeys(s.keys);renderKeys()}\n" +
         " $('cur').textContent=s.current||'-';\n" +
         " $('hist').textContent=(s.history||[]).slice(0,4).join(' · ');\n" +
-        " renderWait(s);\n" +
-        " if(s.authed===false&&!asking)authBar('🔐 이 기기는 아직 호출 권한이 없습니다. 호출기 폰에서 허용해야 번호 호출·설정을 할 수 있습니다.',true);\n" +
-        " if(s.authed)$('authbar').classList.remove('show');\n";
+        " renderWait(s);\n";
     private static final String P1 =
+        " if(s.authed===false&&!asking)authBar('🔐 이 기기는 아직 호출 권한이 없습니다. 호출기 폰에서 허용해야 번호 호출·설정을 할 수 있습니다.',true);\n" +
+        " if(s.authed)$('authbar').classList.remove('show');\n" +
         " $('closedNow').textContent=s.closed?'🌙 마감 표시 중':'영업 중';$('closeNowBtn').textContent=s.closed?'마감 표시 끄기':'지금 마감 표시';\n" +
         " if(!loaded){$('tts').value=s.tts;$('sub').value=s.sub;$('rep').value=s.repeat;$('slide').value=s.slide;$('popup').value=s.popup;$('fit').value=s.fit;$('keep').value=s.keep;\n" +
         "  $('theme').value=s.theme||'vivid';$('videoSound').checked=!!s.videoSound;$('closeOn').checked=!!s.closeOn;$('open').value=s.open||'09:00';$('close').value=s.close||'22:00';$('closeMsg').value=s.closeMsg||'';\n" +
@@ -214,10 +215,14 @@ final class WebPage {
         " var ch=$('chime');ch.innerHTML='';(d.chimes||[]).forEach(function(c){ch.add(new Option(c.label,c.name))});if(S.customChime)ch.add(new Option('직접 올린 소리','custom'));ch.value=S.chime||'dingdong';\n" +
         " var en=$('ttsEngine');en.innerHTML='';en.add(new Option('기본 음성 엔진 (폰 설정 따름)',''));(d.engines||[]).forEach(function(e){en.add(new Option(e.label,e.name))});en.value=S.ttsEngine||'';\n" +
         " var vo=$('voiceName');vo.innerHTML='';vo.add(new Option('기본 목소리',''));(d.voices||[]).forEach(function(x){vo.add(new Option(x.label,x.name))});vo.value=S.voiceName||'';\n" +
-        " $('voiceMode').options[1].disabled=!S.recReady}).catch(function(){})}\n" +
+        " var vm=$('voiceMode');while(vm.options.length>2)vm.remove(2);(d.packs||[]).forEach(function(p){vm.add(new Option(p.label+' (녹음된 목소리 · 1~999번)',p.mode),1)});vm.value=S.voiceMode||'tts';\n" +
+        " var ph=$('packPhrase');ph.innerHTML='';(d.phrases||[]).forEach(function(p){ph.add(new Option(p.label,p.name))});ph.value=S.packPhrase||'p_food';\n" +
+        " for(var i=0;i<vm.options.length;i++)if(vm.options[i].value==='rec')vm.options[i].disabled=!S.recReady;voiceModeUi()}).catch(function(){})}\n" +
+        "// 녹음된 목소리(승아 등)는 문장만 고르고, 기계 음성 설정(엔진·목소리·속도·높낮이)은 숨김\n" +
+        "function voiceModeUi(){var pk=/^pack:/.test($('voiceMode').value);$('packbox').style.display=pk?'':'none';$('ttsbox').style.display=pk?'none':''}\n" +
         "$('soundbox').addEventListener('toggle',function(){if(this.open)loadVoices()});\n" +
-        "function previewVoice(){var a=new Audio(withTok('/voice/preview?n=51&voice='+encodeURIComponent($('voiceName').value)+'&rate='+$('rate').value+'&pitch='+$('pitch').value));msg('음성을 만드는 중…');a.onplaying=function(){msg('▶ 재생 중')};a.onerror=function(){msg('미리 듣기를 할 수 없습니다 (허용·음성 엔진 확인)')};a.play().catch(function(){})}\n" +
-        "function saveSound(){var engineChanged=$('ttsEngine').value!==(S.ttsEngine||'');api('/config?'+['chime','voiceMode','ttsEngine','voiceName','rate','pitch'].map(q).join('&')).then(function(s){if(s&&s.ok){msg(engineChanged?'저장됨 · 음성 엔진이 바뀌어 목소리 목록을 다시 불러옵니다':'알림음·목소리 저장됨');if(engineChanged)setTimeout(loadVoices,2500)}})}\n" +
+        "function previewVoice(){var a=new Audio(withTok('/voice/preview?n=51&voice='+encodeURIComponent($('voiceName').value)+'&rate='+$('rate').value+'&pitch='+$('pitch').value+'&mode='+encodeURIComponent($('voiceMode').value)+'&phrase='+$('packPhrase').value));msg('음성을 만드는 중…');a.onplaying=function(){msg('▶ 재생 중')};a.onerror=function(){msg('미리 듣기를 할 수 없습니다 (허용·음성 엔진 확인)')};a.play().catch(function(){})}\n" +
+        "function saveSound(){var engineChanged=$('ttsEngine').value!==(S.ttsEngine||'');api('/config?'+['chime','voiceMode','ttsEngine','voiceName','rate','pitch','packPhrase'].map(q).join('&')).then(function(s){if(s&&s.ok){msg(engineChanged?'저장됨 · 음성 엔진이 바뀌어 목소리 목록을 다시 불러옵니다':'알림음·목소리 저장됨');if(engineChanged)setTimeout(loadVoices,2500)}})}\n" +
         "async function uploadChime(f){if(!f)return;if(f.size>5*1048576){msg('알림음 파일은 5MB 이하만');return}msg('알림음 보내는 중…');var s=await post('/chime/upload',f);if(s.auth){requestAuth();return}\n" +
         " if(s.ok){render(s);loadVoices();msg('✔ 내 소리 파일을 알림음으로 설정했습니다');new Audio('/chime?type=custom').play()}else msg(s.error||'올리지 못했습니다')}\n" +
         "// ── 영업 시간 · 마감 ──\n" +
@@ -237,7 +242,8 @@ final class WebPage {
         "function presetKeys(p){KM=parseKeys(p);capturing=null;saveKeys()}\n" +
         "function renderKeys(){var box=$('keyrows');if(!box)return;box.innerHTML='';ACTS.forEach(function(a){var row=document.createElement('div');row.className='krow';\n" +
         " var chips=KM[a[0]].map(function(c){return '<span class=\"chip\">'+keyLabel(c)+' <b data-a=\"'+a[0]+'\" data-c=\"'+c+'\">✕</b></span>'}).join('')||'<span class=\"none\">(없음)</span>';\n" +
-        " row.innerHTML='<div class=\"kname\">'+a[1]+'</div><div class=\"kchips\">'+chips+'</div><button class=\"kset'+(capturing===a[0]?' on':'')+'\" data-set=\"'+a[0]+'\">'+(capturing===a[0]?'키를 누르세요…':'키 지정')+'</button>';box.appendChild(row)});\n" +
+        " row.innerHTML='<div class=\"kname\">'+a[1]+'</div><div class=\"kchips\">'+chips+'</div><button class=\"kset'+(capturing===a[0]?' on':'')+'\" data-set=\"'+a[0]+'\">'+(capturing===a[0]?'키를 누르세요…':'키 지정')+'</button>';box.appendChild(row)});\n";
+    private static final String P2 =
         " box.querySelectorAll('b[data-c]').forEach(function(x){x.onclick=function(){var l=KM[x.dataset.a];l.splice(l.indexOf(x.dataset.c),1);saveKeys()}});\n" +
         " box.querySelectorAll('button[data-set]').forEach(function(x){x.onclick=function(){capturing=capturing===x.dataset.set?null:x.dataset.set;renderKeys()}})}\n" +
         "var MODS=/^(Shift|Control|Alt|Meta)|^(NumLock|CapsLock|ScrollLock|Tab)$/;\n" +
@@ -245,8 +251,7 @@ final class WebPage {
         " var code=e.code||'';\n" +
         " if(capturing){if(!code||MODS.test(code))return;e.preventDefault();if(e.repeat)return;for(var a in KM){var i=KM[a].indexOf(code);if(i>=0)KM[a].splice(i,1)}KM[capturing].push(code);var done=capturing;capturing=null;saveKeys();msg('\"'+keyLabel(code)+'\" → '+ACTS.filter(function(x){return x[0]===done})[0][1]);return}\n" +
         " var t=e.target.tagName;if(t==='INPUT'||t==='SELECT'||t==='TEXTAREA'||e.ctrlKey||e.altKey||e.metaKey)return;\n" +
-        " var act=actionFor(code),m=act?null:/^(Numpad|Digit)([0-9])$/.exec(code);\n";
-    private static final String P2 =
+        " var act=actionFor(code),m=act?null:/^(Numpad|Digit)([0-9])$/.exec(code);\n" +
         " if(!act&&!m)return; // 텐키는 NumLock 상태와 상관없이 키 위치(code)로 판단\n" +
         " e.preventDefault();if(document.activeElement&&document.activeElement.blur)document.activeElement.blur();\n" +
         " if(m){if(!e.repeat)window.k(m[2]);return}\n" +
@@ -261,5 +266,5 @@ final class WebPage {
         "api('/status');setInterval(function(){fetch(withTok('/status'),{cache:'no-store'}).then(function(r){return r.json()}).then(render).catch(function(){})},3000);\n" +
         "</script></body></html>\n";
 
-    static final String HTML = new StringBuilder(24792).append(P0).append(P1).append(P2).toString();
+    static final String HTML = new StringBuilder(25627).append(P0).append(P1).append(P2).toString();
 }

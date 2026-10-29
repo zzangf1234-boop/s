@@ -137,6 +137,16 @@ final class Sound {
             byte[] all = new byte[(int) f.length()];
             int off = 0, r;
             while (off < all.length && (r = in.read(all, off, all.length - off)) > 0) off += r;
+            return parseWav(all, off);
+        } catch (IOException ignored) {
+        }
+        return null;
+    }
+
+    /** WAV 바이트 → 16비트 모노 PCM (형식이 다르면 null) */
+    static short[] parseWav(byte[] all, int off) {
+        try {
+            if (off < 44) return null;
             if (!(all[0] == 'R' && all[1] == 'I' && all[8] == 'W' && all[9] == 'A')) return null;
             int pos = 12, channels = 1, bits = 16;
             while (pos + 8 <= off) {
@@ -157,7 +167,7 @@ final class Sound {
                 }
                 pos += 8 + size + (size & 1);
             }
-        } catch (IOException ignored) {
+        } catch (Exception ignored) {
         }
         return null;
     }

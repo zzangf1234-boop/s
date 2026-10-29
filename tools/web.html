@@ -92,11 +92,12 @@ details .kset.on{background:#ff8a00}
 <br>알림음<select id="chime"></select>
 <div class="two"><button class="sm" onclick="new Audio('/chime?type='+$('chime').value).play()">▶ 알림음 듣기</button>
 <label class="up" style="font-size:14px;padding:8px;margin-top:4px">📁 내 소리 파일<input type="file" accept="audio/*" hidden onchange="uploadChime(this.files[0]);this.value=''"></label></div>
-<br>음성 방식<select id="voiceMode"><option value="tts">기계 음성</option><option value="rec">내 목소리 (녹음은 호출기 앱 ⚙ → 내 목소리 녹음)</option></select>
-음성 엔진<select id="ttsEngine"></select>
+<br>음성 방식<select id="voiceMode" onchange="voiceModeUi()"><option value="tts">기계 음성</option><option value="rec">내 목소리 (녹음은 호출기 앱 ⚙ → 내 목소리 녹음)</option></select>
+<div id="packbox" style="display:none">번호 뒤 안내 문장<select id="packPhrase"></select></div>
+<div id="ttsbox">음성 엔진<select id="ttsEngine"></select>
 목소리<select id="voiceName"></select>
 말하기 속도 <b id="rateV"></b><input id="rate" type="range" min="50" max="200" step="5" oninput="$('rateV').textContent=this.value+'%'">
-목소리 높낮이 <b id="pitchV"></b><input id="pitch" type="range" min="50" max="200" step="5" oninput="$('pitchV').textContent=this.value+'%'">
+목소리 높낮이 <b id="pitchV"></b><input id="pitch" type="range" min="50" max="200" step="5" oninput="$('pitchV').textContent=this.value+'%'"></div>
 <div class="two"><button class="sm" onclick="previewVoice()">▶ 51번 미리 듣기</button><button class="sm" onclick="saveSound()">저장</button></div>
 </details>
 
@@ -217,10 +218,14 @@ function loadVoices(){fetch('/voices',{cache:'no-store'}).then(function(r){retur
  var ch=$('chime');ch.innerHTML='';(d.chimes||[]).forEach(function(c){ch.add(new Option(c.label,c.name))});if(S.customChime)ch.add(new Option('직접 올린 소리','custom'));ch.value=S.chime||'dingdong';
  var en=$('ttsEngine');en.innerHTML='';en.add(new Option('기본 음성 엔진 (폰 설정 따름)',''));(d.engines||[]).forEach(function(e){en.add(new Option(e.label,e.name))});en.value=S.ttsEngine||'';
  var vo=$('voiceName');vo.innerHTML='';vo.add(new Option('기본 목소리',''));(d.voices||[]).forEach(function(x){vo.add(new Option(x.label,x.name))});vo.value=S.voiceName||'';
- $('voiceMode').options[1].disabled=!S.recReady}).catch(function(){})}
+ var vm=$('voiceMode');while(vm.options.length>2)vm.remove(2);(d.packs||[]).forEach(function(p){vm.add(new Option(p.label+' (녹음된 목소리 · 1~999번)',p.mode),1)});vm.value=S.voiceMode||'tts';
+ var ph=$('packPhrase');ph.innerHTML='';(d.phrases||[]).forEach(function(p){ph.add(new Option(p.label,p.name))});ph.value=S.packPhrase||'p_food';
+ for(var i=0;i<vm.options.length;i++)if(vm.options[i].value==='rec')vm.options[i].disabled=!S.recReady;voiceModeUi()}).catch(function(){})}
+// 녹음된 목소리(승아 등)는 문장만 고르고, 기계 음성 설정(엔진·목소리·속도·높낮이)은 숨김
+function voiceModeUi(){var pk=/^pack:/.test($('voiceMode').value);$('packbox').style.display=pk?'':'none';$('ttsbox').style.display=pk?'none':''}
 $('soundbox').addEventListener('toggle',function(){if(this.open)loadVoices()});
-function previewVoice(){var a=new Audio(withTok('/voice/preview?n=51&voice='+encodeURIComponent($('voiceName').value)+'&rate='+$('rate').value+'&pitch='+$('pitch').value));msg('음성을 만드는 중…');a.onplaying=function(){msg('▶ 재생 중')};a.onerror=function(){msg('미리 듣기를 할 수 없습니다 (허용·음성 엔진 확인)')};a.play().catch(function(){})}
-function saveSound(){var engineChanged=$('ttsEngine').value!==(S.ttsEngine||'');api('/config?'+['chime','voiceMode','ttsEngine','voiceName','rate','pitch'].map(q).join('&')).then(function(s){if(s&&s.ok){msg(engineChanged?'저장됨 · 음성 엔진이 바뀌어 목소리 목록을 다시 불러옵니다':'알림음·목소리 저장됨');if(engineChanged)setTimeout(loadVoices,2500)}})}
+function previewVoice(){var a=new Audio(withTok('/voice/preview?n=51&voice='+encodeURIComponent($('voiceName').value)+'&rate='+$('rate').value+'&pitch='+$('pitch').value+'&mode='+encodeURIComponent($('voiceMode').value)+'&phrase='+$('packPhrase').value));msg('음성을 만드는 중…');a.onplaying=function(){msg('▶ 재생 중')};a.onerror=function(){msg('미리 듣기를 할 수 없습니다 (허용·음성 엔진 확인)')};a.play().catch(function(){})}
+function saveSound(){var engineChanged=$('ttsEngine').value!==(S.ttsEngine||'');api('/config?'+['chime','voiceMode','ttsEngine','voiceName','rate','pitch','packPhrase'].map(q).join('&')).then(function(s){if(s&&s.ok){msg(engineChanged?'저장됨 · 음성 엔진이 바뀌어 목소리 목록을 다시 불러옵니다':'알림음·목소리 저장됨');if(engineChanged)setTimeout(loadVoices,2500)}})}
 async function uploadChime(f){if(!f)return;if(f.size>5*1048576){msg('알림음 파일은 5MB 이하만');return}msg('알림음 보내는 중…');var s=await post('/chime/upload',f);if(s.auth){requestAuth();return}
  if(s.ok){render(s);loadVoices();msg('✔ 내 소리 파일을 알림음으로 설정했습니다');new Audio('/chime?type=custom').play()}else msg(s.error||'올리지 못했습니다')}
 
