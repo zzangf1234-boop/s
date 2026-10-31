@@ -87,7 +87,7 @@ final class VoiceRecorder {
         final int base = 2;
         final int doneN = done, needN = need;
         final boolean ready = done == need;
-        new AlertDialog.Builder(a, android.R.style.Theme_Material_Dialog_Alert)
+        new AlertDialog.Builder(a, R.style.DidDialog)
                 .setTitle("내 목소리 녹음 (" + done + "/" + need + ")" + (ready ? " — 준비 완료" : ""))
                 .setItems(items.toArray(new String[0]), (d, which) -> {
                     if (which == 0) {
@@ -104,7 +104,7 @@ final class VoiceRecorder {
                         host.play("/voice?n=51");
                         showList(template, closeMsg, recMode);
                     } else if (which == base + list.size()) {
-                        new AlertDialog.Builder(a, android.R.style.Theme_Material_Dialog_Alert)
+                        new AlertDialog.Builder(a, R.style.DidDialog)
                                 .setMessage("녹음한 목소리를 모두 지울까요? 음성 방식은 기계 음성으로 바뀝니다.")
                                 .setPositiveButton("지우기", (d2, w2) -> {
                                     File[] fs = dir.listFiles();
@@ -167,7 +167,7 @@ final class VoiceRecorder {
         row.addView(play, new LinearLayout.LayoutParams(lp));
         box.addView(row);
 
-        final AlertDialog dlg = new AlertDialog.Builder(a, android.R.style.Theme_Material_Dialog_Alert)
+        final AlertDialog dlg = new AlertDialog.Builder(a, R.style.DidDialog)
                 .setTitle(clip.title + " 녹음")
                 .setView(box)
                 .setPositiveButton("저장", null)

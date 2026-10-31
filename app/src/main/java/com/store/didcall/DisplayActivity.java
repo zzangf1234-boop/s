@@ -295,7 +295,7 @@ public class DisplayActivity extends Activity {
         et.setHint("예) 192.168.0.23");
         et.setText(host.replace(":" + Net.HTTP_PORT, ""));
         et.setTextColor(Color.WHITE);
-        new AlertDialog.Builder(this, android.R.style.Theme_Material_Dialog_Alert)
+        new AlertDialog.Builder(this, R.style.DidDialog)
                 .setTitle("호출기 주소")
                 .setMessage("호출기 앱 상단에 표시된 주소를 입력하세요.")
                 .setView(et)
@@ -412,7 +412,7 @@ public class DisplayActivity extends Activity {
         // 화면 내용을 시계 방향으로 90° 돌리면(90) TV를 왼쪽(반시계)으로 돌려 단 경우에 바로 보임
         String[] items = {"가로 (기본)", "세로 — TV를 왼쪽으로 돌려 단 경우", "세로 — TV를 오른쪽으로 돌려 단 경우"};
         final int[] values = {0, 90, 270};
-        new AlertDialog.Builder(this, android.R.style.Theme_Material_Dialog_Alert)
+        new AlertDialog.Builder(this, R.style.DidDialog)
                 .setTitle("화면 방향")
                 .setItems(items, (d, which) -> {
                     web.evaluateJavascript("setRot(" + values[which] + ")", null);
@@ -440,7 +440,7 @@ public class DisplayActivity extends Activity {
         b.append("\n\n기기: ").append(Build.MANUFACTURER).append(' ').append(Build.MODEL)
                 .append("\n안드로이드: ").append(Build.VERSION.RELEASE)
                 .append("\n호출기: ").append(host.isEmpty() ? "연결 안 됨" : host);
-        new AlertDialog.Builder(this, android.R.style.Theme_Material_Dialog_Alert)
+        new AlertDialog.Builder(this, R.style.DidDialog)
                 .setTitle("화면 정보")
                 .setMessage(b.toString())
                 .setPositiveButton("확인", null)
@@ -450,7 +450,7 @@ public class DisplayActivity extends Activity {
     @Override
     public void onBackPressed() {
         // 실수로 꺼지는 것을 막기 위해 확인 창 표시
-        new AlertDialog.Builder(this, android.R.style.Theme_Material_Dialog_Alert)
+        new AlertDialog.Builder(this, R.style.DidDialog)
                 .setTitle("DID 호출 화면")
                 .setItems(new String[]{"계속 표시", "화면 방향 (세로 거치)", "화면 정보", "호출기 다시 찾기", "호출기 주소 직접 입력", "역할 다시 선택", "앱 종료"}, (d, which) -> {
                     if (which == 1) {

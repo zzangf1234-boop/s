@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- 앱 어두운 색에 맞춘 대화상자 테마 (기본 흰 테마 대신) -->
+    <style name="DidDialog" parent="android:Theme.Material.Dialog.Alert">
+        <item name="android:colorBackground">#171C23</item>
+        <item name="android:windowBackground">@android:color/transparent</item>
+        <item name="android:background">#171C23</item>
+        <item name="android:colorAccent">#FF8A00</item>
+        <item name="android:textColorPrimary">#F4F5F7</item>
+        <item name="android:textColor">#F4F5F7</item>
+        <item name="android:textColorSecondary">#98A2AE</item>
+        <item name="android:buttonBarPositiveButtonStyle">@style/DidDialogButtonAccent</item>
+        <item name="android:buttonBarNegativeButtonStyle">@style/DidDialogButton</item>
+        <item name="android:buttonBarNeutralButtonStyle">@style/DidDialogButton</item>
+    </style>
+
+    <style name="DidDialogButton" parent="android:Widget.Material.Button.Borderless.Colored">
+        <item name="android:textColor">#B8C1CC</item>
+        <item name="android:textSize">15sp</item>
+        <item name="android:textAllCaps">false</item>
+    </style>
+
+    <style name="DidDialogButtonAccent" parent="android:Widget.Material.Button.Borderless.Colored">
+        <item name="android:textColor">#FF8A00</item>
+        <item name="android:textSize">15sp</item>
+        <item name="android:textStyle">bold</item>
+        <item name="android:textAllCaps">false</item>
+    </style>
+</resources>

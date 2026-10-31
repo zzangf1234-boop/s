@@ -62,7 +62,7 @@ final class Updater {
     static void showResult(Activity a, String result) {
         if (result.startsWith("update:")) {
             String ver = result.substring(7);
-            new AlertDialog.Builder(a, android.R.style.Theme_Material_Dialog_Alert)
+            new AlertDialog.Builder(a, R.style.DidDialog)
                     .setTitle("새 버전이 있습니다")
                     .setMessage("현재 " + current(a) + " → 새 버전 " + ver
                             + "\n\n1) APK 받기 — GitHub 사이트의 최근 빌드에서 DID-number-call-apk 를 받아 설치합니다.\n"
@@ -74,13 +74,13 @@ final class Updater {
                     .setNegativeButton("나중에", null)
                     .show();
         } else if ("latest".equals(result)) {
-            new AlertDialog.Builder(a, android.R.style.Theme_Material_Dialog_Alert)
+            new AlertDialog.Builder(a, R.style.DidDialog)
                     .setTitle("업데이트 확인")
                     .setMessage("최신 버전입니다 (현재 " + current(a) + ")")
                     .setPositiveButton("확인", null)
                     .show();
         } else {
-            new AlertDialog.Builder(a, android.R.style.Theme_Material_Dialog_Alert)
+            new AlertDialog.Builder(a, R.style.DidDialog)
                     .setTitle("업데이트 확인 실패")
                     .setMessage("인터넷(와이파이) 연결을 확인해 주세요.\n" + result)
                     .setPositiveButton("확인", null)

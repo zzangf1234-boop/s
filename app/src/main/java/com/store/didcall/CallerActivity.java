@@ -196,7 +196,7 @@ public class CallerActivity extends Activity implements VoiceRecorder.Host {
     private TextView makeInput(float sp) {
         inputView = Ui.text(this, "", sp, Ui.YELLOW, true);
         inputView.setGravity(Gravity.CENTER);
-        inputView.setBackground(Ui.round(this, 0xFF000000, 14));
+        inputView.setBackground(Ui.panel(this, 0xFF000000, 18));
         inputView.setLetterSpacing(0.1f);
         inputView.setSingleLine(true);
         if (Build.VERSION.SDK_INT >= 26) { // "123~130" 처럼 길어지면 글자를 줄여 한 줄에
@@ -277,7 +277,7 @@ public class CallerActivity extends Activity implements VoiceRecorder.Host {
             b.setOnLongClickListener(v -> {
                 tap(v);
                 String items = o.optString("items");
-                new AlertDialog.Builder(this, android.R.style.Theme_Material_Dialog_Alert)
+                new AlertDialog.Builder(this, R.style.DidDialog)
                         .setTitle(n + "번 주문")
                         .setMessage((items.isEmpty() ? "" : items + "\n\n") + "조리중 목록에서 지울까요? (호출하지 않음)")
                         .setPositiveButton("지우기", (d, x) -> request("/waiting/remove?n=" + n, n + "번을 조리중에서 지웠습니다"))
@@ -301,6 +301,7 @@ public class CallerActivity extends Activity implements VoiceRecorder.Host {
 
     private void buildPortrait() {
         int g = Ui.dp(this, 8);
+        boolean kp = prefs.getBoolean(K_KEYPAD_VIS, true);
         LinearLayout root = new LinearLayout(this);
         root.setOrientation(LinearLayout.VERTICAL);
         root.setBackgroundColor(Ui.BG);
@@ -308,16 +309,31 @@ public class CallerActivity extends Activity implements VoiceRecorder.Host {
         root.addView(header());
         root.addView(makeCurrent());
         root.addView(makeWaiting());
-        root.addView(makeInput(60), new LinearLayout.LayoutParams(-1, Ui.dp(this, 100)));
-        LinearLayout.LayoutParams padLp = new LinearLayout.LayoutParams(-1, 0, 1f);
-        padLp.topMargin = g;
-        root.addView(makeKeypad(), padLp);
-        LinearLayout.LayoutParams cLp = new LinearLayout.LayoutParams(-1, Ui.dp(this, 76));
+        root.addView(makeInput(kp ? 60 : 90), new LinearLayout.LayoutParams(-1, Ui.dp(this, 108)));
+        if (kp) {
+            LinearLayout.LayoutParams padLp = new LinearLayout.LayoutParams(-1, 0, 1f);
+            padLp.topMargin = g;
+            root.addView(makeKeypad(), padLp);
+        } else {
+            View sp = new View(this);
+            LinearLayout.LayoutParams spLp = new LinearLayout.LayoutParams(-1, 0, 1f);
+            root.addView(sp, spLp);
+        }
+        LinearLayout.LayoutParams cLp = new LinearLayout.LayoutParams(-1, Ui.dp(this, 80));
         cLp.topMargin = g;
         root.addView(makeCall(), cLp);
-        LinearLayout.LayoutParams rLp = new LinearLayout.LayoutParams(-1, Ui.dp(this, 56));
+        // 키패드 보이기·숨기기 (숨기면 입력 번호·호출 버튼이 그만큼 커짐 — 가로 모드와 같은 방식)
+        Button toggle = Ui.button(this, kp ? "키패드 숨기기 ▲" : "▼ 키패드", Ui.KEY, 15);
+        toggle.setOnClickListener(v -> {
+            prefs.edit().putBoolean(K_KEYPAD_VIS, !prefs.getBoolean(K_KEYPAD_VIS, true)).apply();
+            buildUi();
+        });
+        LinearLayout.LayoutParams rLp = new LinearLayout.LayoutParams(-1, Ui.dp(this, 48));
         rLp.topMargin = g;
-        root.addView(makeAux(), rLp);
+        root.addView(toggle, rLp);
+        LinearLayout.LayoutParams aLp = new LinearLayout.LayoutParams(-1, Ui.dp(this, 64));
+        aLp.topMargin = g / 2;
+        root.addView(makeAux(), aLp);
         root.addView(makeMsg());
         setContentView(root);
     }
@@ -568,7 +584,7 @@ public class CallerActivity extends Activity implements VoiceRecorder.Host {
     // ───────────────────────── 기기 승인 ─────────────────────────
     private void askApproval(final JSONObject r) {
         final String id = r.optString("id");
-        new AlertDialog.Builder(this, android.R.style.Theme_Material_Dialog_Alert)
+        new AlertDialog.Builder(this, R.style.DidDialog)
                 .setTitle("새 기기가 호출 권한을 요청합니다")
                 .setMessage(r.optString("name") + "\n(" + r.optString("ip") + ")\n\n허용하면 이 기기에서 번호 호출·설정 변경을 할 수 있습니다.\n모르는 기기라면 [거부]를 누르세요.")
                 .setPositiveButton("허용", (d, w) -> call("/auth/decide?id=" + id + "&ok=1", () -> msg("✔ " + r.optString("name") + " 허용됨")))
@@ -584,7 +600,7 @@ public class CallerActivity extends Activity implements VoiceRecorder.Host {
                 final JSONArray arr = o.optJSONArray("devices");
                 ui.post(() -> {
                     if (arr == null || arr.length() == 0) {
-                        new AlertDialog.Builder(this, android.R.style.Theme_Material_Dialog_Alert)
+                        new AlertDialog.Builder(this, R.style.DidDialog)
                                 .setTitle("허용된 기기")
                                 .setMessage("아직 허용된 기기가 없습니다.\n\n다른 폰·PC에서 호출 페이지를 열고 호출하려고 하면 이 폰에 허용 요청이 뜹니다. TV 화면·PC 화면은 허용 없이 볼 수 있습니다.")
                                 .setPositiveButton("확인", null)
@@ -599,11 +615,11 @@ public class CallerActivity extends Activity implements VoiceRecorder.Host {
                         items[i] = d.optString("name") + "\n" + d.optString("ip") + " · 마지막 사용 "
                                 + (mins < 1 ? "방금" : mins < 60 ? mins + "분 전" : mins < 1440 ? (mins / 60) + "시간 전" : (mins / 1440) + "일 전");
                     }
-                    new AlertDialog.Builder(this, android.R.style.Theme_Material_Dialog_Alert)
+                    new AlertDialog.Builder(this, R.style.DidDialog)
                             .setTitle("허용된 기기 (눌러서 권한 빼기)")
                             .setItems(items, (dd, which) -> {
                                 final JSONObject d = arr.optJSONObject(which);
-                                new AlertDialog.Builder(this, android.R.style.Theme_Material_Dialog_Alert)
+                                new AlertDialog.Builder(this, R.style.DidDialog)
                                         .setMessage(d.optString("name") + " 의 호출 권한을 뺄까요?\n다시 쓰려면 허용 요청을 새로 받아야 합니다.")
                                         .setPositiveButton("권한 빼기", (x, y) -> call("/auth/revoke?token=" + d.optString("token"), () -> msg("권한을 뺐습니다")))
                                         .setNegativeButton("취소", null)
@@ -665,7 +681,7 @@ public class CallerActivity extends Activity implements VoiceRecorder.Host {
                 "역할 다시 선택",
                 "호출 서버 끄고 종료",
         };
-        new AlertDialog.Builder(this, android.R.style.Theme_Material_Dialog_Alert)
+        new AlertDialog.Builder(this, R.style.DidDialog)
                 .setItems(items, (d, which) -> {
                     switch (which) {
                         case 0: pickMedia("image/*", REQ_IMAGES, "TV에 띄울 이미지 선택"); break;
@@ -716,7 +732,7 @@ public class CallerActivity extends Activity implements VoiceRecorder.Host {
         String[] items = {"자동 회전 (폰을 돌리는 대로)", "세로 고정", "가로 고정 (키패드 연결 시 추천)"};
         String cur = prefs.getString(K_ORIENT, "auto");
         int checked = cur.equals("portrait") ? 1 : cur.equals("landscape") ? 2 : 0;
-        new AlertDialog.Builder(this, android.R.style.Theme_Material_Dialog_Alert)
+        new AlertDialog.Builder(this, R.style.DidDialog)
                 .setTitle("호출기 화면 방향")
                 .setSingleChoiceItems(items, checked, (d, which) -> {
                     prefs.edit().putString(K_ORIENT, values[which]).apply();
@@ -750,7 +766,7 @@ public class CallerActivity extends Activity implements VoiceRecorder.Host {
         names.add("upload");
         labels.add("📁 내 소리 파일 올리기 (mp3·wav, 5MB 이하)");
         final int[] sel = {Math.max(0, names.indexOf(last.optString("chime", "dingdong")))};
-        new AlertDialog.Builder(this, android.R.style.Theme_Material_Dialog_Alert)
+        new AlertDialog.Builder(this, R.style.DidDialog)
                 .setTitle("알림음 (누르면 미리 듣기)")
                 .setSingleChoiceItems(labels.toArray(new String[0]), sel[0], (d, which) -> {
                     if ("upload".equals(names.get(which))) {
@@ -828,7 +844,7 @@ public class CallerActivity extends Activity implements VoiceRecorder.Host {
             items.add("↺ 속도·높낮이 기본값으로");
             acts.add(() -> call("/config?rate=95&pitch=100", () -> { msg("기본값으로 되돌렸습니다"); showVoiceSettings(); }));
         }
-        new AlertDialog.Builder(this, android.R.style.Theme_Material_Dialog_Alert)
+        new AlertDialog.Builder(this, R.style.DidDialog)
                 .setTitle("목소리 설정" + (packMode || v.optBoolean("ready") ? "" : " (음성 엔진 준비 중…)"))
                 .setItems(items.toArray(new String[0]), (d, which) -> acts.get(which).run())
                 .setNegativeButton("닫기", null)
@@ -846,7 +862,7 @@ public class CallerActivity extends Activity implements VoiceRecorder.Host {
         }
         modes.add("rec"); labels.add("내 목소리 (⚙ → 내 목소리 녹음에서 녹음)");
         int checked = Math.max(0, modes.indexOf(cur));
-        new AlertDialog.Builder(this, android.R.style.Theme_Material_Dialog_Alert)
+        new AlertDialog.Builder(this, R.style.DidDialog)
                 .setTitle("목소리 종류")
                 .setSingleChoiceItems(labels.toArray(new String[0]), checked, (d, which) -> {
                     d.dismiss();
@@ -869,7 +885,7 @@ public class CallerActivity extends Activity implements VoiceRecorder.Host {
             labels[i] = phrases.optJSONObject(i).optString("label");
             if (phrases.optJSONObject(i).optString("name").equals(last.optString("packPhrase", "p_food"))) checked = i;
         }
-        new AlertDialog.Builder(this, android.R.style.Theme_Material_Dialog_Alert)
+        new AlertDialog.Builder(this, R.style.DidDialog)
                 .setTitle("번호 뒤 안내 문장")
                 .setSingleChoiceItems(labels, checked, (d, which) -> {
                     d.dismiss();
@@ -887,7 +903,7 @@ public class CallerActivity extends Activity implements VoiceRecorder.Host {
         String[] items = new String[engines.length() + 1];
         items[0] = "기본 음성 엔진 (폰 설정 따름)";
         for (int i = 0; i < engines.length(); i++) items[i + 1] = engines.optJSONObject(i).optString("label");
-        new AlertDialog.Builder(this, android.R.style.Theme_Material_Dialog_Alert)
+        new AlertDialog.Builder(this, R.style.DidDialog)
                 .setTitle("음성 엔진")
                 .setItems(items, (d, which) -> {
                     String name = which == 0 ? "" : engines.optJSONObject(which - 1).optString("name");
@@ -912,7 +928,7 @@ public class CallerActivity extends Activity implements VoiceRecorder.Host {
             if (names[i + 1].equals(current)) checked = i + 1;
         }
         final int[] sel = {checked};
-        new AlertDialog.Builder(this, android.R.style.Theme_Material_Dialog_Alert)
+        new AlertDialog.Builder(this, R.style.DidDialog)
                 .setTitle("목소리 (누르면 미리 듣기)")
                 .setSingleChoiceItems(labels, checked, (d, which) -> {
                     sel[0] = which;
@@ -943,7 +959,7 @@ public class CallerActivity extends Activity implements VoiceRecorder.Host {
         TextView hint = Ui.text(this, "100% = 보통. 왼쪽은 느리게/낮게, 오른쪽은 빠르게/높게", 13, Ui.MUTED, false);
         hint.setGravity(Gravity.CENTER);
         box.addView(hint);
-        final AlertDialog dlg = new AlertDialog.Builder(this, android.R.style.Theme_Material_Dialog_Alert)
+        final AlertDialog dlg = new AlertDialog.Builder(this, R.style.DidDialog)
                 .setTitle(title)
                 .setView(box)
                 .setPositiveButton("저장", (d, w) -> call("/config?" + key + "=" + (50 + bar.getProgress() * 5), () -> { msg("✔ 저장했습니다"); showVoiceSettings(); }))
@@ -1001,7 +1017,7 @@ public class CallerActivity extends Activity implements VoiceRecorder.Host {
         info.setPadding(0, pad / 2, 0, 0);
         box.addView(info);
 
-        new AlertDialog.Builder(this, android.R.style.Theme_Material_Dialog_Alert)
+        new AlertDialog.Builder(this, R.style.DidDialog)
                 .setTitle("영업 시간 · 마감 안내")
                 .setView(box)
                 .setPositiveButton("저장", (d, w) -> call("/config?closeOn=" + (auto.isChecked() ? "1" : "0") + "&open=" + open[0]
@@ -1082,7 +1098,7 @@ public class CallerActivity extends Activity implements VoiceRecorder.Host {
 
         android.widget.ScrollView sv = new android.widget.ScrollView(this);
         sv.addView(box);
-        new AlertDialog.Builder(this, android.R.style.Theme_Material_Dialog_Alert)
+        new AlertDialog.Builder(this, R.style.DidDialog)
                 .setTitle("🧾 키오스크 주문 연동")
                 .setView(sv)
                 .setPositiveButton("저장", (d, w) -> call("/config?kioskOn=" + (on.isChecked() ? "1" : "0")
@@ -1094,7 +1110,7 @@ public class CallerActivity extends Activity implements VoiceRecorder.Host {
     }
 
     private void confirmClearWaiting() {
-        new AlertDialog.Builder(this, android.R.style.Theme_Material_Dialog_Alert)
+        new AlertDialog.Builder(this, R.style.DidDialog)
                 .setMessage("조리중 목록을 모두 지울까요?")
                 .setPositiveButton("모두 지우기", (d, w) -> request("/waiting/clear", "조리중 목록을 비웠습니다"))
                 .setNegativeButton("취소", null)
@@ -1106,7 +1122,7 @@ public class CallerActivity extends Activity implements VoiceRecorder.Host {
     private void pickTime(String cur, final TimeSet cb) {
         int h = 9, m = 0;
         try { h = Integer.parseInt(cur.substring(0, 2)); m = Integer.parseInt(cur.substring(3, 5)); } catch (Exception ignored) {}
-        new TimePickerDialog(this, android.R.style.Theme_Material_Dialog_Alert,
+        new TimePickerDialog(this, R.style.DidDialog,
                 (v, hh, mm) -> cb.on(String.format(java.util.Locale.US, "%02d:%02d", hh, mm)), h, m, true).show();
     }
 
@@ -1114,7 +1130,7 @@ public class CallerActivity extends Activity implements VoiceRecorder.Host {
     private void showConnectInfo() {
         String ip = Net.localIp();
         String base = "http://" + ip + ":" + Net.HTTP_PORT;
-        new AlertDialog.Builder(this, android.R.style.Theme_Material_Dialog_Alert)
+        new AlertDialog.Builder(this, R.style.DidDialog)
                 .setTitle("TV·PC 화면 연결 방법")
                 .setMessage("이 폰이 호출 서버입니다. TV·PC는 같은 와이파이에 연결하세요.\n\n"
                         + "📺 안드로이드 TV 기기\nDID 앱 → 'TV 화면' 선택 → 자동으로 이 폰을 찾습니다.\n"
@@ -1318,7 +1334,7 @@ public class CallerActivity extends Activity implements VoiceRecorder.Host {
         }
         items[KeyMap.ACTIONS.length] = "↺ 텐키형 기본값으로 (. = 한 칸 지우기)";
         items[KeyMap.ACTIONS.length + 1] = "↺ 백스페이스형 기본값으로 (← = 한 칸 지우기)";
-        new AlertDialog.Builder(this, android.R.style.Theme_Material_Dialog_Alert)
+        new AlertDialog.Builder(this, R.style.DidDialog)
                 .setTitle("키 설정 (숫자 키는 항상 번호 입력)")
                 .setItems(items, (d, which) -> {
                     if (which < KeyMap.ACTIONS.length) {
@@ -1337,7 +1353,7 @@ public class CallerActivity extends Activity implements VoiceRecorder.Host {
     private void captureKey(final int idx) {
         final String action = KeyMap.ACTIONS[idx];
         final Map<String, List<String>> m = keyMap();
-        final AlertDialog dlg = new AlertDialog.Builder(this, android.R.style.Theme_Material_Dialog_Alert)
+        final AlertDialog dlg = new AlertDialog.Builder(this, R.style.DidDialog)
                 .setTitle("'" + KeyMap.LABELS[idx] + "' 키 지정")
                 .setMessage(captureText(m, action))
                 .setPositiveButton("완료", (d, w) -> showKeySettings())
