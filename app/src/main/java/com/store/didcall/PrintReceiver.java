@@ -104,22 +104,32 @@ final class PrintReceiver {
             ByteArrayOutputStream job = new ByteArrayOutputStream();
             byte[] buf = new byte[8192];
             long idleSince = System.currentTimeMillis();
+            int prev = -1; // 바로 앞 바이트 (자르기 명령이 read 경계에 걸쳐도 찾기 위해)
             while (running) {
                 int r;
                 try {
                     r = in.read(buf);
                 } catch (SocketTimeoutException t) {
                     // 1.5초 동안 더 오는 게 없으면 한 장 끝
-                    if (job.size() > 0) {
-                        listener.onReceipt(job.toByteArray(), from, relayResult);
-                        job.reset();
-                    }
+                    emit(job, from, relayResult);
                     if (System.currentTimeMillis() - idleSince > 60_000) break; // 1분 넘게 조용하면 연결 종료
                     continue;
                 }
                 if (r < 0) break;
                 idleSince = System.currentTimeMillis();
-                job.write(buf, 0, r);
+                // 자르기 명령(ESC i, ESC m, GS V)이 오면 거기서 한 장을 끊음 → 붙어 온 다음 주문을 놓치지 않게
+                int start = 0;
+                for (int i = 0; i < r; i++) {
+                    int c = buf[i] & 0xFF;
+                    boolean cut = (prev == 0x1B && (c == 'i' || c == 'm')) || (prev == 0x1D && c == 'V');
+                    prev = c;
+                    if (cut) {
+                        job.write(buf, start, i + 1 - start);
+                        emit(job, from, relayResult);
+                        start = i + 1;
+                    }
+                }
+                job.write(buf, start, r - start);
                 if (toPrinter != null) {
                     try { toPrinter.write(buf, 0, r); toPrinter.flush(); }
                     catch (Exception e) { relayResult = "주방 프린터로 보내는 중 끊겼습니다"; toPrinter = null; }
@@ -132,11 +142,20 @@ final class PrintReceiver {
                     back.flush();
                 }
             }
-            if (job.size() > 0) listener.onReceipt(job.toByteArray(), from, relayResult);
+            emit(job, from, relayResult);
         } catch (Exception ignored) {
         } finally {
             try { s.close(); } catch (Exception ignored) {}
             try { if (relay != null) relay.close(); } catch (Exception ignored) {}
         }
+    }
+
+    /** 모인 한 장을 넘기고 비움. 자르기 명령만 있고 글자가 없는 조각은 버림 */
+    private void emit(ByteArrayOutputStream job, String from, String relayResult) {
+        if (job.size() == 0) return;
+        byte[] raw = job.toByteArray();
+        job.reset();
+        if (new String(Receipt.strip(raw)).trim().isEmpty()) return;
+        listener.onReceipt(raw, from, relayResult);
     }
 }
