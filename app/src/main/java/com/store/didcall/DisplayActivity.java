@@ -242,24 +242,40 @@ public class DisplayActivity extends Activity {
 
     /**
      * 호출기(호스트)가 새 버전 APK 를 갖고 있으면 내려받아 설치 창을 띄움 (TV 기기 자동 업데이트).
-     * 호출기 폰이 업데이트되면 TV 도 영업 중에 바로 따라 올라가야 하므로 10분마다 + 호출기에 (재)연결될 때마다 확인.
-     * 버전이 같으면 아무 일도 없으니 잦은 확인은 부담이 없다.
+     * 확인 시점: 하루 한 번 + 호출기에 (재)연결될 때 서버 버전이 달라졌으면 즉시 (호스트가 업데이트됐다는 신호).
      */
     private void checkSlaveUpdate() {
+        long now = System.currentTimeMillis();
+        boolean dailyDue = now - prefs.getLong("slaveUpdAt", 0) >= 24 * 3600_000L;
+        if (dailyDue) prefs.edit().putLong("slaveUpdAt", now).apply();
+        final boolean force = lastServerVer != null && serverVerChanged.getAndSet(false);
+        if (dailyDue || force) {
+            bg.execute(() -> {
+                final String ver = SlaveUpdate.checkAndInstall(this, "http://" + host);
+                if (ver != null) {
+                    ui.post(() -> Toast.makeText(this,
+                            "새 버전 " + ver + " 설치 화면을 열었습니다 — [설치]를 눌러 주세요. 설치 후 앱이 잠시 꺼졌다 켜집니다",
+                            Toast.LENGTH_LONG).show());
+                }
+            });
+        }
+        // 연결 때마다: 서버 배포 버전을 가볍게 물어봐 두었다가, 바뀌면(호스트 업데이트) 다음 연결 때 즉시 업데이트
         bg.execute(() -> {
-            final String ver = SlaveUpdate.checkAndInstall(this, "http://" + host);
-            if (ver != null) {
-                ui.post(() -> Toast.makeText(this,
-                        "새 버전 " + ver + " 설치 화면을 열었습니다 — [설치]를 눌러 주세요. 설치 후 앱이 잠시 꺼졌다 켜집니다",
-                        Toast.LENGTH_LONG).show());
+            try {
+                JSONObject info = new JSONObject(Http.get("http://" + host + "/apk/info", 4000, 6000));
+                if (!info.optBoolean("ok")) return;
+                String v = info.optString("version", "");
+                if (v.isEmpty()) return;
+                if (lastServerVer != null && !v.equals(lastServerVer)) serverVerChanged.set(true);
+                lastServerVer = v;
+            } catch (Exception ignored) {
             }
         });
-        ui.removeCallbacks(updateCheck);
-        ui.postDelayed(updateCheck, 10 * 60_000L);
     }
 
-    /** 10분마다 다시 확인 (TV 가 켜져 있는 내내 반복) */
-    private final Runnable updateCheck = this::checkSlaveUpdate;
+    /** 마지막으로 본 서버 배포 버전 — 바뀌면 호스트가 업데이트된 것 */
+    private String lastServerVer;
+    private final java.util.concurrent.atomic.AtomicBoolean serverVerChanged = new java.util.concurrent.atomic.AtomicBoolean(false);
 
     /** 일부 기기는 화면을 한 번 눌러야 소리가 켜지므로, 화면 가운데를 자동으로 한 번 누름 */
     private void unlockAudio() {
