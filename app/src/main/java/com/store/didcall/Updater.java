@@ -52,6 +52,19 @@ final class Updater {
         }
     }
 
+    /** 새 버전이 있는지 물어봄. result 는 "update:<버전>", "latest", 또는 오류 메시지 */
+    static String check(Context c) {
+        try {
+            String remote = Http.get(VERSION_URL, 6000, 6000).trim();
+            if (remote.isEmpty()) return "버전 정보를 못 읽었습니다";
+            if (compare(current(c), remote) < 0) return "update:" + remote;
+            return "latest";
+        } catch (Exception e) {
+            String m = e.getMessage();
+            return m != null && !m.isEmpty() ? m : "인터넷에 연결할 수 없습니다";
+        }
+    }
+
     /** APK 를 받아 설치 화면을 띄움. 실패 이유(사람이 읽는 글), 성공이면 null */
     static String downloadAndInstall(Activity a, String ver) {
         try {

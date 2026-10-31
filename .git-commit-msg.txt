@@ -1,3 +1,3 @@
-빌드 오류 수정: 람다 안의 this 참조 (1.4.1)
+빌드 오류 수정: 업데이트 확인(check) 메서드 복원 (1.4.1)
 
 Co-Authored-By: Claude Code <noreply@anthropic.com>
