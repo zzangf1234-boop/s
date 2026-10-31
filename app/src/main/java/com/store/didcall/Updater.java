@@ -2,44 +2,38 @@ package com.store.didcall;
 
 import android.app.Activity;
 import android.app.AlertDialog;
-import android.content.Intent;
-import android.net.Uri;
+import android.content.Context;
+
+import java.io.File;
+import java.io.FileOutputStream;
+import java.io.InputStream;
 
 /**
  * 업데이트 확인: GitHub 의 VERSION 파일과 현재 앱 버전을 비교해
- * 새 버전이면 Actions Artifacts 안내 (공개 저장소이므로 GitHub 에서 직접 받는 게 가장 간단).
- * 기기별로 다운로드·설치 화면까지 자동으로 밀어 주지는 않는다 — 사장님이 APK 를 받아 열면 된다.
+ * 새 버전이면 최신 Release 에서 APK 를 앱 안에서 바로 내려받아 설치 화면을 띄움.
+ * (로그인 없이 받을 수 있는 주소: github Releases /releases/download/…)
  */
 final class Updater {
 
     /** 저장소의 맨 위 VERSION 파일 (raw.githubusercontent.com) */
     private static final String VERSION_URL =
             "https://raw.githubusercontent.com/zzangf1234-boop/s/main/VERSION";
-    private static final String ACTIONS_URL =
-            "https://github.com/zzangf1234-boop/s/actions";
+    /**
+     * 새 APK 내려받기 주소 — Google Drive 공유 파일 (링크가 있는 모든 사용자).
+     * view 링크를 직접 다운로드 주소로 바꿔 씀. 새 APK 를 드라이브에 올릴 때는
+     * 파일 ID 만 바꾸면 됨: /file/d/<여기>/view
+     */
+    private static final String APK_URL =
+            "https://drive.google.com/uc?export=download&id=12Uuoue5PuXGRSOivbkNCEmg5psQ7eEWo";
 
     private Updater() {}
 
     /** 이 앱의 버전 이름 (build.gradle 의 versionName = VERSION 파일) */
-    static String current(android.content.Context c) {
+    static String current(Context c) {
         try {
             return c.getPackageManager().getPackageInfo(c.getPackageName(), 0).versionName;
         } catch (Exception e) {
             return "0";
-        }
-    }
-
-    /** 새 버전이 있는지 물어봄. result 는 "ok", "latest", 또는 오류 메시지 */
-    static String check(android.content.Context c) {
-        try {
-            String remote = Http.get(VERSION_URL, 6000, 6000).trim();
-            if (remote.isEmpty()) return "버전 정보를 못 읽었습니다";
-            int cmp = compare(current(c), remote);
-            if (cmp < 0) return "update:" + remote;
-            return "latest";
-        } catch (Exception e) {
-            String m = e.getMessage();
-            return m != null && !m.isEmpty() ? m : "인터넷에 연결할 수 없습니다";
         }
     }
 
@@ -58,18 +52,49 @@ final class Updater {
         }
     }
 
-    /** 호출기 앱 메뉴에서 부름: 결과를 대화상자로 보여 주고, 새 버전이면 GitHub Actions 로 */
+    /** APK 를 받아 설치 화면을 띄움. 실패 이유(사람이 읽는 글), 성공이면 null */
+    static String downloadAndInstall(Activity a, String ver) {
+        try {
+            File dst = new File(a.getCacheDir(), "update.apk");
+            try (InputStream in = new java.net.URL(APK_URL).openStream();
+                 FileOutputStream out = new FileOutputStream(dst)) {
+                byte[] buf = new byte[64 * 1024];
+                int r;
+                while ((r = in.read(buf)) > 0) out.write(buf, 0, r);
+            }
+            if (dst.length() < 1024) return "APK 를 받지 못했습니다 (인터넷 확인)";
+            SlaveUpdate.install(a, dst);
+            return null;
+        } catch (Exception e) {
+            return "다운로드 중 오류: " + e.getMessage();
+        }
+    }
+
+    /** 호출기 앱 메뉴에서 부름: 새 버전이면 바로 받아 설치 화면 */
     static void showResult(Activity a, String result) {
         if (result.startsWith("update:")) {
-            String ver = result.substring(7);
+            final String ver = result.substring(7);
             new AlertDialog.Builder(a, R.style.DidDialog)
                     .setTitle("새 버전이 있습니다")
                     .setMessage("현재 " + current(a) + " → 새 버전 " + ver
-                            + "\n\n1) APK 받기 — GitHub 사이트의 최근 빌드에서 DID-number-call-apk 를 받아 설치합니다.\n"
-                            + "2) 설치 후 앱을 켜면, 이 폰이 새 APK 를 자기 서버에 올려 TV 기기에 자동으로 배포합니다.\n\n다운로드 페이지를 열까요?")
-                    .setPositiveButton("페이지 열기", (d, w) -> {
-                        try { a.startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse(ACTIONS_URL))); }
-                        catch (Exception ignored) {}
+                            + "\n\n[업데이트]를 누르면 바로 받아 설치 화면을 열어 드립니다."
+                            + "\n설치가 끝나면 앱이 잠시 꺼졌다 켜지고, TV 기기도 자동으로 따라 업데이트됩니다.")
+                    .setPositiveButton("업데이트", (d, w) -> {
+                        android.widget.Toast.makeText(a, "다운로드 중…", android.widget.Toast.LENGTH_SHORT).show();
+                        new Thread(() -> {
+                            final String err = downloadAndInstall(a, ver);
+                            a.runOnUiThread(() -> {
+                                if (err == null) {
+                                    android.widget.Toast.makeText(a, ver + " 설치 화면을 열었습니다 — [설치]를 눌러 주세요", android.widget.Toast.LENGTH_LONG).show();
+                                } else {
+                                    new AlertDialog.Builder(a, R.style.DidDialog)
+                                            .setTitle("업데이트 실패")
+                                            .setMessage(err)
+                                            .setPositiveButton("확인", null)
+                                            .show();
+                                }
+                            });
+                        }).start();
                     })
                     .setNegativeButton("나중에", null)
                     .show();

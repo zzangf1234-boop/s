@@ -309,7 +309,7 @@ public class CallerActivity extends Activity implements VoiceRecorder.Host {
         root.addView(header());
         root.addView(makeCurrent());
         root.addView(makeWaiting());
-        root.addView(makeInput(kp ? 60 : 90), new LinearLayout.LayoutParams(-1, Ui.dp(this, 108)));
+        root.addView(makeInput(kp ? 60 : 130), new LinearLayout.LayoutParams(-1, kp ? Ui.dp(this, 108) : Ui.dp(this, 200)));
         if (kp) {
             LinearLayout.LayoutParams padLp = new LinearLayout.LayoutParams(-1, 0, 1f);
             padLp.topMargin = g;
@@ -323,7 +323,7 @@ public class CallerActivity extends Activity implements VoiceRecorder.Host {
         cLp.topMargin = g;
         root.addView(makeCall(), cLp);
         // 키패드 보이기·숨기기 (숨기면 입력 번호·호출 버튼이 그만큼 커짐 — 가로 모드와 같은 방식)
-        Button toggle = Ui.button(this, kp ? "키패드 숨기기 ▲" : "▼ 키패드", Ui.KEY, 15);
+        Button toggle = Ui.button(this, kp ? "키패드 숨김 ▲" : "키패드 표시 ▼", Ui.KEY, 15);
         toggle.setOnClickListener(v -> {
             prefs.edit().putBoolean(K_KEYPAD_VIS, !prefs.getBoolean(K_KEYPAD_VIS, true)).apply();
             buildUi();
@@ -363,7 +363,7 @@ public class CallerActivity extends Activity implements VoiceRecorder.Host {
 
         LinearLayout right = new LinearLayout(this);
         right.setOrientation(LinearLayout.VERTICAL);
-        Button toggle = Ui.button(this, kp ? "키패드 숨기기 ▸" : "◂ 키패드", Ui.KEY, 15);
+        Button toggle = Ui.button(this, kp ? "키패드 숨김 ▸" : "키패드 표시 ◂", Ui.KEY, 15);
         toggle.setOnClickListener(v -> {
             prefs.edit().putBoolean(K_KEYPAD_VIS, !prefs.getBoolean(K_KEYPAD_VIS, true)).apply();
             buildUi();

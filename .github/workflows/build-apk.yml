@@ -65,3 +65,12 @@ jobs:
         with:
           name: DID-number-call-apk
           path: out/*.apk
+      # 로그인 없이 폰 브라우저·앱에서 바로 받을 수 있게 최신 Release 에 APK 를 등록 (같은 태그면 덮어씀)
+      - name: Release 등록
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          TAG="v$(cat VERSION)"
+          gh release create "$TAG" out/*.apk --title "$TAG" --notes "자동 빌드 ($(date -u +%Y-%m-%d))" --clobber 2>/dev/null \
+            || gh release upload "$TAG" out/*.apk --clobber
+          echo "Release: https://github.com/zzangf1234-boop/s/releases/tag/$TAG"
