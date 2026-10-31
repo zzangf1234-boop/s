@@ -77,6 +77,10 @@ final class CallServer {
         String receiptDiagnose(File f) throws IOException;
         /** event: call | recall | clear | config | media | closing | auth | waiting — 서버 스레드에서 호출됨 */
         void onChanged(String event);
+        /** 배포용 APK 보관소 (호출기 폰이 새 APK 를 올리고 TV 가 내려받음) */
+        ApkStore apkStore();
+        /** 이 서버 폰(호출기) 앱 자신의 버전이름 */
+        String appVersion();
     }
 
     private static final Charset UTF8 = Charset.forName("UTF-8");
@@ -211,6 +215,16 @@ final class CallServer {
                     String err = contentLength <= 0 ? "파일 내용이 없습니다" : host.saveCustomChime(in, contentLength);
                     if (err == null) host.onChanged("config");
                     send(out, err == null ? 200 : 400, JSON, status(err == null, err, true, local));
+                } else if ("/apk".equals(path)) {
+                    // 새 APK 배포용: 호출기 폰(로컬)만 올림. 버전은 ?v= 로 함께 받음
+                    String err;
+                    if (!local) err = "호출기 폰에서만 올릴 수 있습니다";
+                    else {
+                        String v = q.get("v") == null ? "" : q.get("v").trim();
+                        err = contentLength <= 0 ? "파일 내용이 없습니다" : host.apkStore().save(in, contentLength);
+                        if (err == null) host.apkStore().setVersion(v.matches("[0-9A-Za-z.\\-]{1,20}") ? v : "");
+                    }
+                    send(out, err == null ? 200 : 400, JSON, status(err == null, err, true, local));
                 } else {
                     send(out, 404, TEXT, "Not Found");
                 }
@@ -240,6 +254,24 @@ final class CallServer {
                 case "/ping":
                     send(out, 200, TEXT, "DIDCALL OK");
                     break;
+                case "/apk/info": {
+                    // TV 기기가 새 버전을 확인할 때 (누구나 — 화면 기기는 허용 없이 동작)
+                    ApkStore a = host.apkStore();
+                    JSONObject o = new JSONObject();
+                    o.put("ok", true);
+                    o.put("version", a.has() ? a.version() : host.appVersion());
+                    o.put("size", a.size());
+                    o.put("host", host.appVersion());
+                    send(out, 200, JSON, o.toString());
+                    break;
+                }
+                case "/apk": {
+                    // TV 기기가 APK 를 내려받을 때 (누구나)
+                    File f = host.apkStore().file();
+                    if (!host.apkStore().has()) send(out, 404, TEXT, "보관 중인 APK 가 없습니다");
+                    else sendFile(out, f, "application/vnd.android.package-archive", range, false);
+                    break;
+                }
                 case "/status":
                     if (q.containsKey("d")) displays.put(ip, System.currentTimeMillis());
                     send(out, 200, JSON, status(true, null, authed, local));

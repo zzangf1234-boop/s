@@ -96,16 +96,6 @@ public class DisplayActivity extends Activity {
         buildUi();
         host = prefs.getString(K_HOST, "");
         startSearch();
-        checkUpdateQuietly();
-    }
-
-    /** 하루에 한 번, 새 앱 버전이 있으면 조용히 알려 줌 (인터넷 되는 기기에서만) */
-    private void checkUpdateQuietly() {
-        bg.execute(() -> {
-            if (Updater.quietCheck(this, prefs)) {
-                ui.post(() -> Toast.makeText(this, "새 버전이 있습니다. 호출기 앱 메뉴의 '업데이트 확인'에서 받으세요", Toast.LENGTH_LONG).show());
-            }
-        });
     }
 
     @Override
@@ -247,6 +237,26 @@ public class DisplayActivity extends Activity {
         web.loadUrl("http://" + h + "/display?app=1");
         ui.postDelayed(this::unlockAudio, 2500);
         ui.postDelayed(watchdog, 10_000);
+        checkSlaveUpdate();
+    }
+
+    /**
+     * 호출기(호스트)가 새 버전 APK 를 갖고 있으면 내려받아 설치 창을 띄움 (TV 기기 자동 업데이트).
+     * 호출기 폰이 먼저 업데이트되면 TV 기기는 시작할 때 자기보다 새 APK 를 받아 따라 올라감.
+     * 하루에 한 번만 확인 — 잦은 확인·재설치 요청을 막기 위함.
+     */
+    private void checkSlaveUpdate() {
+        long now = System.currentTimeMillis();
+        if (now - prefs.getLong("slaveUpdAt", 0) < 24 * 3600_000L) return;
+        prefs.edit().putLong("slaveUpdAt", now).apply();
+        bg.execute(() -> {
+            final String ver = SlaveUpdate.checkAndInstall(this, "http://" + host);
+            if (ver != null) {
+                ui.post(() -> Toast.makeText(this,
+                        "새 버전 " + ver + " 설치 화면을 열었습니다 — [설치]를 눌러 주세요. 설치 후 앱이 잠시 꺼졌다 켜집니다",
+                        Toast.LENGTH_LONG).show());
+            }
+        });
     }
 
     /** 일부 기기는 화면을 한 번 눌러야 소리가 켜지므로, 화면 가운데를 자동으로 한 번 누름 */

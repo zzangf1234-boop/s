@@ -84,6 +84,7 @@ public class HostService extends Service implements CallServer.Host {
 
     private final CallStore store = new CallStore();
     private MediaStore media;
+    private ApkStore apkStore;
     private Auth auth;
     private CallServer server;
     private PrintReceiver receiver;
@@ -128,6 +129,10 @@ public class HostService extends Service implements CallServer.Host {
         startForegroundCompat();
         prefs = getSharedPreferences(MainActivity.PREFS, MODE_PRIVATE);
         media = new MediaStore(new File(getFilesDir(), "images"));
+        apkStore = new ApkStore(this);
+        // 호출기 폰의 자기 APK 를 TV 기기 배포용으로 등록 (폰이 새 버전으로 업데이트됐으면 자동으로 따라감)
+        apkStore.copyFromSelf(this);
+        apkStore.setVersion(Updater.current(this));
         store.setKeepMinutes(keepMinutes());
         store.load(prefs.getString(K_STATE, ""));
         auth = new Auth(new Auth.Listener() {
@@ -306,6 +311,8 @@ public class HostService extends Service implements CallServer.Host {
     // ───────────────────────── CallServer.Host ─────────────────────────
     @Override public CallStore store() { return store; }
     @Override public MediaStore media() { return media; }
+    @Override public ApkStore apkStore() { return apkStore; }
+    @Override public String appVersion() { return Updater.current(this); }
     @Override public Auth auth() { return auth; }
 
     @Override

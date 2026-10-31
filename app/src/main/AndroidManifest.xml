@@ -72,5 +72,12 @@
                 <action android:name="android.intent.action.QUICKBOOT_POWERON" />
             </intent-filter>
         </receiver>
+
+        <!-- TV 기기 자동 업데이트: 호출기 서버에서 받은 APK 를 설치 앱에 넘겨 주기 위한 최소 FileProvider -->
+        <provider
+            android:name=".ApkProvider"
+            android:authorities="${applicationId}.apk"
+            android:exported="false"
+            android:grantUriPermissions="true" />
     </application>
 </manifest>

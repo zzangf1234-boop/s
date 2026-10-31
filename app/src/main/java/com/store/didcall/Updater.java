@@ -65,7 +65,8 @@ final class Updater {
             new AlertDialog.Builder(a, android.R.style.Theme_Material_Dialog_Alert)
                     .setTitle("새 버전이 있습니다")
                     .setMessage("현재 " + current(a) + " → 새 버전 " + ver
-                            + "\n\nGitHub 사이트에서 가장 최근 빌드(녹색 체크)를 열고 Artifacts 의 DID-number-call-apk 를 받아 설치하세요.\n다운로드 페이지를 열까요?")
+                            + "\n\n1) APK 받기 — GitHub 사이트의 최근 빌드에서 DID-number-call-apk 를 받아 설치합니다.\n"
+                            + "2) 설치 후 앱을 켜면, 이 폰이 새 APK 를 자기 서버에 올려 TV 기기에 자동으로 배포합니다.\n\n다운로드 페이지를 열까요?")
                     .setPositiveButton("페이지 열기", (d, w) -> {
                         try { a.startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse(ACTIONS_URL))); }
                         catch (Exception ignored) {}
@@ -85,13 +86,5 @@ final class Updater {
                     .setPositiveButton("확인", null)
                     .show();
         }
-    }
-
-    /** TV 화면용: 조용히 확인해서 새 버전이 있을 때만 true (하루에 한 번) */
-    static boolean quietCheck(android.content.Context c, android.content.SharedPreferences prefs) {
-        long now = System.currentTimeMillis();
-        if (now - prefs.getLong("updCheckedAt", 0) < 24 * 3600_000L) return false; // 하루에 한 번
-        prefs.edit().putLong("updCheckedAt", now).apply();
-        return check(c).startsWith("update:");
     }
 }
