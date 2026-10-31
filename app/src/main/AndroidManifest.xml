@@ -31,6 +31,7 @@
 
         <activity
             android:name=".MainActivity"
+            android:configChanges="keyboard|keyboardHidden|navigation"
             android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
@@ -48,6 +49,7 @@
 
         <activity
             android:name=".CallerActivity"
+            android:configChanges="keyboard|keyboardHidden|navigation"
             android:exported="false"
             android:launchMode="singleTop"
             android:windowSoftInputMode="adjustResize" />

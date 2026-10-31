@@ -101,6 +101,15 @@ public class CallerActivity extends Activity implements VoiceRecorder.Host {
         }
     }
 
+    /**
+     * 블루투스 키패드가 연결·끊김(절전 후 다시 연결 포함)될 때 화면을 새로 만들지 않음.
+     * (예전에는 키패드가 잠들었다 깨어날 때마다 화면이 새로고침되고 입력 중인 번호가 사라짐)
+     */
+    @Override
+    public void onConfigurationChanged(Configuration c) {
+        super.onConfigurationChanged(c);
+    }
+
     @Override
     protected void onSaveInstanceState(Bundle out) {
         super.onSaveInstanceState(out);
