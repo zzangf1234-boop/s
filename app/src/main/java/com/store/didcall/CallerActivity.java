@@ -703,8 +703,8 @@ public class CallerActivity extends Activity implements VoiceRecorder.Host {
                         case 12:
                             msg("업데이트 확인 중…");
                             io.execute(() -> {
-                                final String r = Updater.check(this);
-                                ui.post(() -> Updater.showResult(this, r));
+                                final String r = Updater.check(CallerActivity.this);
+                                ui.post(() -> Updater.showResult(CallerActivity.this, r));
                             });
                             break;
                         case 13:
