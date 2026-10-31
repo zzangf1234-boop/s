@@ -71,6 +71,6 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           TAG="v$(cat VERSION)"
-          gh release create "$TAG" out/*.apk --title "$TAG" --notes "자동 빌드 ($(date -u +%Y-%m-%d))" --clobber 2>/dev/null \
-            || gh release upload "$TAG" out/*.apk --clobber
-          echo "Release: https://github.com/zzangf1234-boop/s/releases/tag/$TAG"
+          gh release create "$TAG" out/*.apk --title "$TAG" --notes "자동 빌드 ($(date -u +%Y-%m-%d))" \
+            || (gh release upload "$TAG" out/*.apk --clobber \
+                || gh release create "$TAG" out/*.apk --title "$TAG" --notes "자동 빌드 ($(date -u +%Y-%m-%d))")
