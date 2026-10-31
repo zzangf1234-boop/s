@@ -242,13 +242,10 @@ public class DisplayActivity extends Activity {
 
     /**
      * 호출기(호스트)가 새 버전 APK 를 갖고 있으면 내려받아 설치 창을 띄움 (TV 기기 자동 업데이트).
-     * 호출기 폰이 먼저 업데이트되면 TV 기기는 시작할 때 자기보다 새 APK 를 받아 따라 올라감.
-     * 하루에 한 번만 확인 — 잦은 확인·재설치 요청을 막기 위함.
+     * 호출기 폰이 업데이트되면 TV 도 영업 중에 바로 따라 올라가야 하므로 10분마다 + 호출기에 (재)연결될 때마다 확인.
+     * 버전이 같으면 아무 일도 없으니 잦은 확인은 부담이 없다.
      */
     private void checkSlaveUpdate() {
-        long now = System.currentTimeMillis();
-        if (now - prefs.getLong("slaveUpdAt", 0) < 24 * 3600_000L) return;
-        prefs.edit().putLong("slaveUpdAt", now).apply();
         bg.execute(() -> {
             final String ver = SlaveUpdate.checkAndInstall(this, "http://" + host);
             if (ver != null) {
@@ -257,7 +254,12 @@ public class DisplayActivity extends Activity {
                         Toast.LENGTH_LONG).show());
             }
         });
+        ui.removeCallbacks(updateCheck);
+        ui.postDelayed(updateCheck, 10 * 60_000L);
     }
+
+    /** 10분마다 다시 확인 (TV 가 켜져 있는 내내 반복) */
+    private final Runnable updateCheck = this::checkSlaveUpdate;
 
     /** 일부 기기는 화면을 한 번 눌러야 소리가 켜지므로, 화면 가운데를 자동으로 한 번 누름 */
     private void unlockAudio() {

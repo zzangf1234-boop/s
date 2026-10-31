@@ -29,6 +29,12 @@ final class SlaveUpdate {
             String ver = info.optString("version", "");
             if (ver.isEmpty() || Updater.compare(versionOf(c), ver) >= 0) return null; // 같거나 최신이면 통과
             File dst = new File(c.getCacheDir(), "update.apk");
+            // 이미 같은 버전을 받아 둔 경우 재다운로드 생략 (설치를 미룬 뒤 10분 뒤 확인 때 또 받는 것을 막음)
+            long want = info.optLong("size", 0);
+            if (dst.isFile() && want > 0 && dst.length() == want) {
+                install(c, dst);
+                return ver;
+            }
             try (InputStream in = new java.net.URL(baseUrl + "/apk").openStream();
                  FileOutputStream out = new FileOutputStream(dst)) {
                 byte[] buf = new byte[64 * 1024];
@@ -39,7 +45,7 @@ final class SlaveUpdate {
             install(c, dst);
             return ver;
         } catch (Exception e) {
-            return null; // 조용히 포기 (다음 시작 때 다시)
+            return null; // 조용히 포기 (다음 확인 때 다시)
         }
     }
 
