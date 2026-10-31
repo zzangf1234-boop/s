@@ -2,8 +2,10 @@ plugins {
     id 'com.android.application'
 }
 
-// GitHub Actions 빌드 번호로 버전을 자동으로 올림 (덮어 설치 순서 보장)
+// versionCode: GitHub Actions 빌드 번호로 자동 증가 (덮어 설치 순서 보장)
 def runNumber = (System.getenv("GITHUB_RUN_NUMBER") ?: "0").toInteger()
+// versionName: 저장소 맨 위 VERSION 파일 (새 기능 = 0.1 올림 → x.(y+1).0 / 수정·오류 = 0.0.1 올림 → x.y.(z+1))
+def appVersion = rootProject.file("VERSION").exists() ? rootProject.file("VERSION").text.trim() : "1.2.0"
 
 // 정식 서명 키: app/release.p12 (비밀번호로 암호화), 비밀번호는 GitHub Secrets 의 DID_KEYSTORE_PASSWORD
 def releaseKeystore = file("release.p12")
@@ -19,7 +21,7 @@ android {
         minSdk 21
         targetSdk 34
         versionCode 100 + runNumber
-        versionName "1.2." + runNumber
+        versionName appVersion
     }
 
     signingConfigs {
