@@ -1,3 +1,6 @@
-키패드 토글 삼각형 방향 수정: 눌렀을 때의 변화가 아니라 현재 상태를 가리키도록 (1.4.3)
+APK 배포를 저장소 파일로: 빌드마다 release/DID-Call.apk 자동 갱신 (1.4.3)
+
+- 업데이트 다운로드 주소를 구글드라이브 → raw.githubusercontent.com/release/DID-Call.apk 로 변경
+- 로그인 불필요, 빌드가 끝나면 자동으로 최신 APK 가 올라가 앱 수정 불필요
 
 Co-Authored-By: Claude Code <noreply@anthropic.com>

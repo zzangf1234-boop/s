@@ -65,12 +65,15 @@ jobs:
         with:
           name: DID-number-call-apk
           path: out/*.apk
-      # 로그인 없이 폰 브라우저·앱에서 바로 받을 수 있게 최신 Release 에 APK 를 등록 (같은 태그면 덮어씀)
-      - name: Release 등록
-        env:
-          GH_TOKEN: ${{ github.token }}
+      # 로그인 없이 폰·앱에서 바로 받을 수 있게 APK 를 저장소의 release/apk 폴더에 커밋 (raw 링크로 다운로드)
+      - name: APK 배포 커밋
         run: |
-          TAG="v$(cat VERSION)"
-          gh release create "$TAG" out/*.apk --title "$TAG" --notes "자동 빌드 ($(date -u +%Y-%m-%d))" \
-            || (gh release upload "$TAG" out/*.apk --clobber \
-                || gh release create "$TAG" out/*.apk --title "$TAG" --notes "자동 빌드 ($(date -u +%Y-%m-%d))")
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          mkdir -p release
+          cp "out/$APK_NAME" release/DID-Call.apk
+          git add release/DID-Call.apk
+          if git diff --cached --quiet; then echo "APK 변경 없음"; else
+            git commit -m "APK 배포 갱신 (v$(cat VERSION)) [skip ci]"
+            git push
+          fi

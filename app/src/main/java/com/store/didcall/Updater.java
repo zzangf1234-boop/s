@@ -19,13 +19,11 @@ final class Updater {
     private static final String VERSION_URL =
             "https://raw.githubusercontent.com/zzangf1234-boop/s/main/VERSION";
     /**
-     * 새 APK 내려받기 주소 — Google Drive 공유 파일 (링크가 있는 모든 사용자).
-     * 드라이브는 바로 주면 "바이러스 검사" 확인 페이지를 돌려 주므로,
-     * downloadAndInstall 이 그 페이지에서 confirm·uuid 를 읽어 다시 받는다.
-     * 새 APK 를 드라이브에 올릴 때는 파일 ID 만 바꾸면 됨: /file/d/<여기>/view
+     * 새 APK 내려받기 주소 — 저장소의 release/DID-Call.apk (raw.githubusercontent.com, 로그인 불필요).
+     * Actions 빌드가 끝나면 알아서 이 파일을 갱신하므로 앱 수정 없이 항상 최신.
      */
     private static final String APK_URL =
-            "https://drive.google.com/uc?export=download&id=12Uuoue5PuXGRSOivbkNCEmg5psQ7eEWo";
+            "https://raw.githubusercontent.com/zzangf1234-boop/s/main/release/DID-Call.apk";
 
     private Updater() {}
 
