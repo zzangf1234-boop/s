@@ -96,6 +96,16 @@ public class DisplayActivity extends Activity {
         buildUi();
         host = prefs.getString(K_HOST, "");
         startSearch();
+        checkUpdateQuietly();
+    }
+
+    /** 하루에 한 번, 새 앱 버전이 있으면 조용히 알려 줌 (인터넷 되는 기기에서만) */
+    private void checkUpdateQuietly() {
+        bg.execute(() -> {
+            if (Updater.quietCheck(this, prefs)) {
+                ui.post(() -> Toast.makeText(this, "새 버전이 있습니다. 호출기 앱 메뉴의 '업데이트 확인'에서 받으세요", Toast.LENGTH_LONG).show());
+            }
+        });
     }
 
     @Override

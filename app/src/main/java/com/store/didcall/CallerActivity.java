@@ -659,6 +659,7 @@ public class CallerActivity extends Activity implements VoiceRecorder.Host {
                 "🔐 허용된 기기",
                 "🌐 이미지·동영상 관리 · 기타 설정 (브라우저)",
                 "📺 TV·PC 화면 연결 방법",
+                "⬆ 업데이트 확인",
                 "번호 초기화 (다음 번호 = 1)",
                 "꺼짐 방지 (배터리 최적화 제외)",
                 "역할 다시 선택",
@@ -684,12 +685,19 @@ public class CallerActivity extends Activity implements VoiceRecorder.Host {
                             break;
                         case 11: showConnectInfo(); break;
                         case 12:
+                            msg("업데이트 확인 중…");
+                            io.execute(() -> {
+                                final String r = Updater.check(this);
+                                ui.post(() -> Updater.showResult(this, r));
+                            });
+                            break;
+                        case 13:
                             lastSent = 0;
                             prefs.edit().putInt(K_LAST, 0).apply();
                             msg("번호를 초기화했습니다");
                             break;
-                        case 13: askBatteryExemption(); break;
-                        case 14:
+                        case 14: askBatteryExemption(); break;
+                        case 15:
                             HostService.stop(this);
                             prefs.edit().remove(MainActivity.KEY_MODE).apply();
                             startActivity(new Intent(this, MainActivity.class).putExtra(MainActivity.EXTRA_CHOOSE, true));
