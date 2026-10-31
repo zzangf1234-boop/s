@@ -20,8 +20,9 @@ final class Updater {
             "https://raw.githubusercontent.com/zzangf1234-boop/s/main/VERSION";
     /**
      * 새 APK 내려받기 주소 — Google Drive 공유 파일 (링크가 있는 모든 사용자).
-     * view 링크를 직접 다운로드 주소로 바꿔 씀. 새 APK 를 드라이브에 올릴 때는
-     * 파일 ID 만 바꾸면 됨: /file/d/<여기>/view
+     * 드라이브는 바로 주면 "바이러스 검사" 확인 페이지를 돌려 주므로,
+     * downloadAndInstall 이 그 페이지에서 confirm·uuid 를 읽어 다시 받는다.
+     * 새 APK 를 드라이브에 올릴 때는 파일 ID 만 바꾸면 됨: /file/d/<여기>/view
      */
     private static final String APK_URL =
             "https://drive.google.com/uc?export=download&id=12Uuoue5PuXGRSOivbkNCEmg5psQ7eEWo";
@@ -69,18 +70,44 @@ final class Updater {
     static String downloadAndInstall(Activity a, String ver) {
         try {
             File dst = new File(a.getCacheDir(), "update.apk");
-            try (InputStream in = new java.net.URL(APK_URL).openStream();
-                 FileOutputStream out = new FileOutputStream(dst)) {
-                byte[] buf = new byte[64 * 1024];
-                int r;
-                while ((r = in.read(buf)) > 0) out.write(buf, 0, r);
+            byte[] data = fetchFile(APK_URL);
+            if (data.length < 1024) {
+                // 드라이브의 "바이러스 검사" 확인 페이지 — confirm·uuid 를 읽어 다시 받음
+                String html = new String(data, "UTF-8");
+                String confirm = match(html, "name=\"confirm\"[^>]*value=\"([^\"]*)\"");
+                String uuid = match(html, "name=\"uuid\"[^>]*value=\"([^\"]*)\"");
+                if (confirm == null) return "APK 받기에 실패했습니다 (드라이브 응답을 해석하지 못했습니다)";
+                StringBuilder u = new StringBuilder("https://drive.usercontent.google.com/download?")
+                        .append("confirm=").append(java.net.URLEncoder.encode(confirm, "UTF-8"));
+                if (uuid != null) u.append("&uuid=").append(java.net.URLEncoder.encode(uuid, "UTF-8"));
+                data = fetchFile(u.toString());
             }
-            if (dst.length() < 1024) return "APK 를 받지 못했습니다 (인터넷 확인)";
+            if (data.length < 1024) return "APK 를 받지 못했습니다 (인터넷 확인)";
+            try (FileOutputStream out = new FileOutputStream(dst)) {
+                out.write(data);
+            }
             SlaveUpdate.install(a, dst);
             return null;
         } catch (Exception e) {
             return "다운로드 중 오류: " + e.getMessage();
         }
+    }
+
+    /** 주소에서 파일을 통째로 받음 */
+    private static byte[] fetchFile(String url) throws Exception {
+        java.io.ByteArrayOutputStream bo = new java.io.ByteArrayOutputStream();
+        try (InputStream in = new java.net.URL(url).openStream()) {
+            byte[] buf = new byte[64 * 1024];
+            int r;
+            while ((r = in.read(buf)) > 0) bo.write(buf, 0, r);
+        }
+        return bo.toByteArray();
+    }
+
+    /** html 에서 첫 정규식 그룹, 없으면 null */
+    private static String match(String html, String regex) {
+        java.util.regex.Matcher m = java.util.regex.Pattern.compile(regex).matcher(html);
+        return m.find() ? m.group(1) : null;
     }
 
     /** 호출기 앱 메뉴에서 부름: 새 버전이면 바로 받아 설치 화면 */
