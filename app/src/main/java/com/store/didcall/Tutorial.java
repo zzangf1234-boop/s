@@ -1,4 +1,4 @@
-﻿package com.store.didcall;
+package com.store.didcall;
 
 import android.app.Activity;
 import android.app.AlertDialog;
