@@ -129,12 +129,28 @@ final class WebPage {
         "<div class=\"two\"><button class=\"sm\" onclick=\"layPreset('basic')\">기본형</button><button class=\"sm\" onclick=\"layPreset('flip')\">좌우 반전형</button></div>\n" +
         "<div class=\"two\"><button class=\"sm\" onclick=\"layPreset('big')\">번호 크게형</button><button class=\"sm\" onclick=\"layReset()\">처음 상태로</button></div>\n" +
         "<p class=\"note\">키오스크 연동을 쓰면 '조리중' 칸을 켜세요. 저장하면 TV·PC 화면에 바로 반영됩니다.</p>\n" +
+        "<div class=\"two\"><button class=\"sm\" onclick=\"$('logoFile').click()\">로고 그림 올리기</button><button class=\"sm\" onclick=\"clearLogo()\">로고 지우기</button></div>\n" +
+        "<input type=\"file\" id=\"logoFile\" accept=\"image/png,image/jpeg,image/webp,image/gif\" style=\"display:none\" onchange=\"uploadLogo(this.files[0]);this.value=''\">\n" +
+        "<p class=\"note\" id=\"logoNote\"></p>\n" +
         "<button onclick=\"saveLayout()\">저장</button>\n" +
+        "</details>\n" +
+        "<details id=\"colorbox\"><summary>화면 색</summary>\n" +
+        "<p class=\"note\">TV·PC 화면의 색을 바꿉니다. 미리 정해진 색 세트를 고른 뒤 세부 색을 바꿀 수 있습니다.</p>\n" +
+        "<div class=\"two\"><button class=\"sm\" onclick=\"colPreset('vivid')\">선명</button><button class=\"sm\" onclick=\"colPreset('calm')\">차분</button></div>\n" +
+        "<div class=\"two\"><button class=\"sm\" onclick=\"colPreset('cafe')\">카페</button><button class=\"sm\" onclick=\"colPreset('modern')\">모던</button></div>\n" +
+        "<label class=\"ck\">배경 <input type=\"color\" id=\"col_bg\" style=\"width:44px;height:32px;margin:0 0 0 auto;padding:0\"></label>\n" +
+        "<label class=\"ck\">칸 배경 <input type=\"color\" id=\"col_panel\" style=\"width:44px;height:32px;margin:0 0 0 auto;padding:0\"></label>\n" +
+        "<label class=\"ck\">글자 (이름·라벨) <input type=\"color\" id=\"col_label\" style=\"width:44px;height:32px;margin:0 0 0 auto;padding:0\"></label>\n" +
+        "<label class=\"ck\">현재 호출 번호 <input type=\"color\" id=\"col_cur\" style=\"width:44px;height:32px;margin:0 0 0 auto;padding:0\"></label>\n" +
+        "<label class=\"ck\">최근·조리중 번호 <input type=\"color\" id=\"col_num\" style=\"width:44px;height:32px;margin:0 0 0 auto;padding:0\"></label>\n" +
+        "<label class=\"ck\">호출 팝업 배경 <input type=\"color\" id=\"col_card\" style=\"width:44px;height:32px;margin:0 0 0 auto;padding:0\"></label>\n" +
+        "<div class=\"two\"><button class=\"sm\" onclick=\"saveColors()\">저장</button><button class=\"sm\" onclick=\"resetColors()\">기본 색으로</button></div>\n" +
         "</details>\n" +
         "<details id=\"keybox\"><summary>키 설정 (키패드·키보드)</summary>\n" +
         "<p class=\"note\">[키 지정]을 누른 뒤 키보드·키패드에서 원하는 키를 누르세요. 숫자 키는 항상 번호 입력입니다. 호출기 앱과 같은 설정을 사용합니다.</p>\n" +
         "<div id=\"keyrows\"></div>\n" +
-        "<button onclick=\"presetKeys(KEY_TENKEY)\">텐키형 기본값 (. 한 칸 지우기)</button>\n" +
+        "<button onclick=\"presetKeys(KEY_TENKEY)\">텐키형 기본값 (. 한 칸 지우기)</button>\n";
+    private static final String P1 =
         "<button onclick=\"presetKeys(KEY_BACKSPACE)\">백스페이스형 기본값 (← 한 칸 지우기)</button>\n" +
         "</details>\n" +
         "<details id=\"kioskbox\"><summary>🧾 키오스크 주문 연동 (조리중)</summary>\n" +
@@ -160,8 +176,7 @@ final class WebPage {
         "// 연속 호출: 번호 뒤에 ~ 한 번 (예: 1~4). 빈 칸이면 다음 번호부터\n" +
         "function tilde(){if(v&&v.indexOf('~')<0&&/^[0-9]+$/.test(v))v+='~';else if(!v){var n=(last||parseInt($('cur').textContent,10)||0)+1;v=n+'~'}show()}\n" +
         "function del(){v=v.slice(0,-1);show()}\n" +
-        "function msg(t){$('msg').textContent=t}\n";
-    private static final String P1 =
+        "function msg(t){$('msg').textContent=t}\n" +
         "function okMsg(t){return function(s){if(s&&s.ok)msg(t)}}\n" +
         "// ── 기기 승인: 호출·설정은 호출기 폰에서 [허용]한 기기만 ──\n" +
         "var TOK='';try{TOK=localStorage.getItem('didTok')||''}catch(e){}\n" +
@@ -182,7 +197,8 @@ final class WebPage {
         " $('hist').textContent=(s.history||[]).slice(0,4).join(' · ');\n" +
         " renderWait(s);\n" +
         " if(!layBound&&s.layout!==undefined){layBound=true;layInit()}\n" +
-        " if(!layLoaded&&s.layout!==undefined){LAY.l=(s.layout&&s.layout.l)||layFrom('l','basic');LAY.p=(s.layout&&s.layout.p)||layFrom('p','basic');layLoaded=true;layRender()}\n" +
+        " if(!layLoaded&&s.layout!==undefined){LAY.l=layFix((s.layout&&s.layout.l)||layFrom('l','basic'));LAY.p=layFix((s.layout&&s.layout.p)||layFrom('p','basic'));layLoaded=true;layRender()}\n" +
+        " if(!colLoaded&&s.colors!==undefined){colLoaded=true;colShow(s.colors||COL_PRESETS.vivid)}\n" +
         " if(s.authed===false&&!asking)authBar('🔐 이 기기는 아직 호출 권한이 없습니다. 호출기 폰에서 허용해야 번호 호출·설정을 할 수 있습니다.',true);\n" +
         " if(s.authed)$('authbar').classList.remove('show');\n" +
         " $('closedNow').textContent=s.closed?'🌙 마감 표시 중':'영업 중';$('closeNowBtn').textContent=s.closed?'마감 표시 끄기':'지금 마감 표시';\n" +
@@ -241,7 +257,8 @@ final class WebPage {
         " for(var i=0;i<vm.options.length;i++)if(vm.options[i].value==='rec')vm.options[i].disabled=!S.recReady;voiceModeUi()}).catch(function(){})}\n" +
         "// 녹음된 목소리(승아 등)는 문장만 고르고, 기계 음성 설정(엔진·목소리·속도·높낮이)은 숨김\n" +
         "function voiceModeUi(){var pk=/^pack:/.test($('voiceMode').value);$('packbox').style.display=pk?'':'none';$('ttsbox').style.display=pk?'none':''}\n" +
-        "$('soundbox').addEventListener('toggle',function(){if(this.open)loadVoices()});\n" +
+        "$('soundbox').addEventListener('toggle',function(){if(this.open)loadVoices()});\n";
+    private static final String P2 =
         "function previewVoice(){var a=new Audio(withTok('/voice/preview?n=51&voice='+encodeURIComponent($('voiceName').value)+'&rate='+$('rate').value+'&pitch='+$('pitch').value+'&mode='+encodeURIComponent($('voiceMode').value)+'&phrase='+$('packPhrase').value));msg('음성을 만드는 중…');a.onplaying=function(){msg('▶ 재생 중')};a.onerror=function(){msg('미리 듣기를 할 수 없습니다 (허용·음성 엔진 확인)')};a.play().catch(function(){})}\n" +
         "function saveSound(){var engineChanged=$('ttsEngine').value!==(S.ttsEngine||'');api('/config?'+['chime','voiceMode','ttsEngine','voiceName','rate','pitch','packPhrase'].map(q).join('&')).then(function(s){if(s&&s.ok){msg(engineChanged?'저장됨 · 음성 엔진이 바뀌어 목소리 목록을 다시 불러옵니다':'알림음·목소리 저장됨');if(engineChanged)setTimeout(loadVoices,2500)}})}\n" +
         "async function uploadChime(f){if(!f)return;if(f.size>5*1048576){msg('알림음 파일은 5MB 이하만');return}msg('알림음 보내는 중…');var s=await post('/chime/upload',f);if(s.auth){requestAuth();return}\n" +
@@ -251,18 +268,36 @@ final class WebPage {
         "function toggleClosed(){api('/closing?on='+(S.closed?0:1)).then(function(s){if(s&&s.ok)msg(s.closed?'🌙 마감을 안내했습니다':'마감 표시를 껐습니다')})}\n" +
         "// ── 화면 배치: 구역을 끌어서 옮기고(노란 모서리로 크기 조절) 저장 → TV·PC 화면에 반영 ──\n" +
         "var LAY={l:null,p:null},layTab='l',layLoaded=false,layBound=false,layDrag=null;\n" +
-        "var LAY_NAMES={left:'이미지·동영상',cur:'현재 호출',hist:'최근 호출',wait:'조리중'};\n" +
+        "var LAY_NAMES={left:'이미지·동영상',cur:'현재 호출',hist:'최근 호출',wait:'조리중',logo:'로고'};\n" +
         "var LAY_PRESETS={\n" +
         " l:{basic:{left:[0,0,84,100],cur:[84,0,16,50],hist:[84,50,16,50]},\n" +
         "    flip:{left:[16,0,84,100],cur:[0,0,16,50],hist:[0,50,16,50]},\n" +
         "    big:{left:[0,0,70,100],cur:[70,0,30,45,1.5],hist:[70,45,30,55,1.25]}},\n" +
         " p:{basic:{left:[0,0,100,64],cur:[0,64,100,14],hist:[0,78,100,22]},\n" +
-        "    flip:{left:[0,36,100,64],cur:[0,0,100,14],hist:[0,14,100,22]},\n";
-    private static final String P2 =
+        "    flip:{left:[0,36,100,64],cur:[0,0,100,14],hist:[0,14,100,22]},\n" +
         "    big:{left:[0,0,100,70],cur:[0,70,100,12,1.5],hist:[0,82,100,18,1.25]}}};\n" +
         "function layFrom(t,name){var P=LAY_PRESETS[t][name],o={};\n" +
         " for(var k in P){var a=P[k];o[k]={x:a[0],y:a[1],w:a[2],h:a[3],on:true,s:a[4]||1}}\n" +
-        " o.wait={x:o.hist.x,y:o.hist.y,w:o.hist.w,h:o.hist.h,on:false,s:1};return o}\n" +
+        " o.wait={x:o.hist.x,y:o.hist.y,w:o.hist.w,h:o.hist.h,on:false,s:1};\n" +
+        " o.logo={x:84,y:0,w:16,h:20,on:false,s:1};return o}\n" +
+        "function layFix(c){ // 예전에 저장한 배치에는 로고 칸이 없을 수 있어서 채워 둠\n" +
+        " if(!c.logo)c.logo={x:84,y:0,w:16,h:20,on:false,s:1};return c}\n" +
+        "function uploadLogo(f){if(!f)return;if(f.size>5*1048576){msg('로고 그림은 5MB 이하만');return}\n" +
+        " $('logoNote').textContent='로고 보내는 중…';post('/logo/upload',f).then(function(s){if(s.auth){requestAuth();return}\n" +
+        "  $('logoNote').textContent=s.ok?'로고 저장됨 (화면에 바로 반영됩니다)':(s.error||'보내기 실패')})}\n" +
+        "function clearLogo(){post('/logo/clear',new Blob([])).then(function(s){if(s.auth){requestAuth();return}$('logoNote').textContent=s.ok?'로고를 지웠습니다':(s.error||'실패')})}\n" +
+        "// ── 화면 색 ──\n" +
+        "var COL_IDS={bg:'col_bg',panel:'col_panel',label:'col_label',cur:'col_cur',num:'col_num',card:'col_card'},colLoaded=false;\n" +
+        "var COL_PRESETS={\n" +
+        " vivid:{bg:'#000000',panel:'#101318',label:'#d5dbe2',cur:'#ffd400',num:'#ffffff',card:'#ff8a00'},\n" +
+        " calm:{bg:'#111418',panel:'#1c2127',label:'#9aa3ad',cur:'#ffcc33',num:'#f2f2f2',card:'#ff8a00'},\n" +
+        " cafe:{bg:'#1b120b',panel:'#2e1f14',label:'#e8d5b7',cur:'#ffb74d',num:'#fff3e0',card:'#a1673a'},\n" +
+        " modern:{bg:'#000000',panel:'#14181f',label:'#9fb3c8',cur:'#ffd60a',num:'#ffffff',card:'#1f4e8c'}};\n" +
+        "function colShow(c){for(var k in COL_IDS)$(COL_IDS[k]).value=c[k]}\n" +
+        "function colPreset(name){colShow(COL_PRESETS[name])}\n" +
+        "function saveColors(){var c={};for(var k in COL_IDS)c[k]=$(COL_IDS[k]).value;\n" +
+        " api('/config?colors='+encodeURIComponent(JSON.stringify(c))).then(okMsg('화면 색 저장됨'))}\n" +
+        "function resetColors(){api('/config?colors=').then(function(s){if(s&&s.ok!==false){colShow(COL_PRESETS.vivid);msg('기본 색으로 되돌렸습니다')}})}\n" +
         "function layPaint(k){var d=$('laycanvas').querySelector('.lb[data-k=\"'+k+'\"]');if(!d)return;var b=LAY[layTab][k];\n" +
         " d.style.left=b.x+'%';d.style.top=b.y+'%';d.style.width=b.w+'%';d.style.height=b.h+'%';d.classList.toggle('off',!b.on)}\n" +
         "function layList(){var L=LAY[layTab],h='';\n" +
@@ -329,5 +364,5 @@ final class WebPage {
         "api('/status');setInterval(function(){fetch(withTok('/status'),{cache:'no-store'}).then(function(r){return r.json()}).then(render).catch(function(){})},3000);\n" +
         "</script></body></html>\n";
 
-    static final String HTML = new StringBuilder(31030).append(P0).append(P1).append(P2).toString();
+    static final String HTML = new StringBuilder(34377).append(P0).append(P1).append(P2).toString();
 }

@@ -63,6 +63,12 @@ public class HostService extends Service implements CallServer.Host {
     static final String K_KIOSK_ON = "kioskOn", K_RELAY = "relay", K_ORDER_LABEL = "orderLabel";
     /** 화면 배치(구역 위치·크기·보이기): {"l":{...},"p":{...}} JSON 문자열 (비어 있으면 기본 배치) */
     static final String K_LAYOUT = "layout";
+    /** 화면 색 (배경·칸 배경·글자·현재 호출·번호·팝업 배경): {"bg":"#000000",...} JSON, 비어 있으면 기본 색 */
+    static final String K_COLORS = "colors";
+    /** 로고 그림이 바뀔 때마다 새 번호 (화면이 새 그림을 다시 받도록) */
+    static final String K_LOGO_VER = "logoVer";
+    static final String[] LOGO_EXTS = {"png", "jpg", "webp", "gif"};
+    static final String[] COLOR_KEYS = {"bg", "panel", "label", "cur", "num", "card"};
     private static final String K_CLOSED = "closed", K_CLOSE_SEQ = "closeSeq", K_STATE = "callState", K_AUTH = "authDevices";
 
     static final String DEF_TTS = "{n}번 고객님, 주문하신 메뉴가 준비되었습니다.";
@@ -295,6 +301,30 @@ public class HostService extends Service implements CallServer.Host {
         try { return new JSONObject(s); } catch (Exception ex) { return JSONObject.NULL; }
     }
 
+    /** 화면 색 JSON (없으면 null → 기본 색) */
+    private Object colorsJson() {
+        String s = prefs.getString(K_COLORS, "");
+        if (s.isEmpty()) return JSONObject.NULL;
+        try { return new JSONObject(s); } catch (Exception ex) { return JSONObject.NULL; }
+    }
+
+    /** 화면 색 값 검사: 알려진 이름 + #RRGGBB 형식만 */
+    private static boolean isColorsJson(String v) {
+        try {
+            JSONObject o = new JSONObject(v);
+            java.util.List<String> known = java.util.Arrays.asList(COLOR_KEYS);
+            java.util.Iterator<String> it = o.keys();
+            while (it.hasNext()) {
+                String k = it.next();
+                if (!known.contains(k)) return false;
+                if (!o.getString(k).matches("#[0-9A-Fa-f]{6}")) return false;
+            }
+            return true;
+        } catch (Exception ex) {
+            return false;
+        }
+    }
+
     /** 화면 배치 값 검사: JSON 이고 구역 위치·크기가 0~100% 안인지 */
     private static boolean isLayoutJson(String v) {
         try {
@@ -302,7 +332,7 @@ public class HostService extends Service implements CallServer.Host {
             for (String k : new String[]{"l", "p"}) {
                 if (!o.has(k)) continue;
                 JSONObject t = o.getJSONObject(k);
-                for (String s : new String[]{"left", "cur", "hist", "wait"}) {
+                for (String s : new String[]{"left", "cur", "hist", "wait", "logo"}) {
                     if (!t.has(s)) continue;
                     JSONObject b = t.getJSONObject(s);
                     double x = b.getDouble("x"), y = b.getDouble("y"), w = b.getDouble("w"), h = b.getDouble("h");
@@ -378,6 +408,9 @@ public class HostService extends Service implements CallServer.Host {
         o.put("relay", prefs.getString(K_RELAY, ""));
         o.put("orderLabel", prefs.getString(K_ORDER_LABEL, "주문번호"));
         o.put("layout", layoutJson());
+        o.put("logo", logoFile() != null);
+        o.put("logoVer", logoVersion());
+        o.put("colors", colorsJson());
         JSONArray log = new JSONArray();
         synchronized (kioskLog) { for (JSONObject j : kioskLog) log.put(j); }
         o.put("kioskLog", log);
@@ -439,6 +472,11 @@ public class HostService extends Service implements CallServer.Host {
             String lv = q.get("layout").trim();
             if (lv.isEmpty()) e.remove(K_LAYOUT);
             else if (lv.length() <= 4000 && isLayoutJson(lv)) e.putString(K_LAYOUT, lv);
+        }
+        if (q.containsKey("colors")) { // 화면 색: 비우면 기본 색
+            String cv = q.get("colors").trim();
+            if (cv.isEmpty()) e.remove(K_COLORS);
+            else if (cv.length() <= 600 && isColorsJson(cv)) e.putString(K_COLORS, cv);
         }
         if (q.containsKey("closeOn")) {
             e.putBoolean(K_CLOSE_ON, "1".equals(q.get("closeOn")) || "true".equals(q.get("closeOn")));
@@ -621,6 +659,71 @@ public class HostService extends Service implements CallServer.Host {
     }
 
     @Override
+    public File logoFile() {
+        for (String ext : LOGO_EXTS) {
+            File f = new File(getFilesDir(), "logo." + ext);
+            if (f.isFile()) return f;
+        }
+        return null;
+    }
+
+    @Override
+    public long logoVersion() {
+        return prefs.getLong(K_LOGO_VER, 0);
+    }
+
+    private void deleteLogoFiles() {
+        for (String ext : LOGO_EXTS) {
+            //noinspection ResultOfMethodCallIgnored
+            new File(getFilesDir(), "logo." + ext).delete();
+        }
+    }
+
+    @Override
+    public void clearLogo() {
+        deleteLogoFiles();
+        prefs.edit().putLong(K_LOGO_VER, System.currentTimeMillis()).apply();
+    }
+
+    @Override
+    public String saveLogo(InputStream in, long len) throws IOException {
+        if (len > 5L * 1024 * 1024) return "로고 그림은 5MB 이하만 올릴 수 있습니다";
+        File tmp = new File(getFilesDir(), "logo_upload.tmp");
+        try (OutputStream out = new FileOutputStream(tmp)) {
+            byte[] buf = new byte[32 * 1024];
+            long left = len;
+            while (left > 0) {
+                int r = in.read(buf, 0, (int) Math.min(buf.length, left));
+                if (r < 0) throw new IOException("unexpected end");
+                out.write(buf, 0, r);
+                left -= r;
+            }
+        }
+        byte[] h = new byte[12];
+        int n;
+        try (FileInputStream fin = new FileInputStream(tmp)) {
+            n = fin.read(h);
+        }
+        String ext = null;
+        if (n >= 4 && (h[0] & 0xFF) == 0x89 && h[1] == 'P' && h[2] == 'N' && h[3] == 'G') ext = "png";
+        else if (n >= 3 && (h[0] & 0xFF) == 0xFF && (h[1] & 0xFF) == 0xD8 && (h[2] & 0xFF) == 0xFF) ext = "jpg";
+        else if (n >= 12 && h[0] == 'R' && h[1] == 'I' && h[2] == 'F' && h[3] == 'F' && h[8] == 'W' && h[9] == 'E' && h[10] == 'B' && h[11] == 'P') ext = "webp";
+        else if (n >= 4 && h[0] == 'G' && h[1] == 'I' && h[2] == 'F' && h[3] == '8') ext = "gif";
+        if (ext == null) {
+            //noinspection ResultOfMethodCallIgnored
+            tmp.delete();
+            return "PNG·JPG·WEBP·GIF 그림 파일만 올릴 수 있습니다";
+        }
+        deleteLogoFiles();
+        if (!tmp.renameTo(new File(getFilesDir(), "logo." + ext))) {
+            //noinspection ResultOfMethodCallIgnored
+            tmp.delete();
+            return "로고를 저장하지 못했습니다";
+        }
+        prefs.edit().putLong(K_LOGO_VER, System.currentTimeMillis()).apply();
+        return null;
+    }
+
     public File customChime() {
         File[] fs = getFilesDir().listFiles((d, name) -> name.startsWith("chime_custom."));
         return fs == null || fs.length == 0 ? null : fs[0];

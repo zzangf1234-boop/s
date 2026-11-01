@@ -67,6 +67,14 @@ final class CallServer {
         File customChime();
         /** 알림음 파일 저장. 오류 메시지, 성공이면 null */
         String saveCustomChime(InputStream in, long len) throws IOException;
+        /** 화면 로고 그림 파일 (PNG·JPG·WEBP·GIF), 없으면 null */
+        File logoFile();
+        /** 로고 그림 저장. 오류 메시지, 성공이면 null */
+        String saveLogo(InputStream in, long len) throws IOException;
+        /** 로고 지우기 */
+        void clearLogo();
+        /** 로고가 바뀔 때마다 새로 정해지는 번호 (화면이 새 그림을 다시 받게) */
+        long logoVersion();
         /** {engines:[...], voices:[...]} */
         JSONObject voices() throws Exception;
         /** 영업 마감 표시 수동 켜기/끄기 */
@@ -215,6 +223,14 @@ final class CallServer {
                     String err = contentLength <= 0 ? "파일 내용이 없습니다" : host.saveCustomChime(in, contentLength);
                     if (err == null) host.onChanged("config");
                     send(out, err == null ? 200 : 400, JSON, status(err == null, err, true, local));
+                } else if ("/logo/upload".equals(path)) {
+                    String err = contentLength <= 0 ? "파일 내용이 없습니다" : host.saveLogo(in, contentLength);
+                    if (err == null) host.onChanged("config");
+                    send(out, err == null ? 200 : 400, JSON, status(err == null, err, true, local));
+                } else if ("/logo/clear".equals(path)) {
+                    host.clearLogo();
+                    host.onChanged("config");
+                    send(out, 200, JSON, status(true, null, true, local));
                 } else if ("/apk".equals(path)) {
                     // 새 APK 배포용: 호출기 폰(로컬)만 올림. 버전은 ?v= 로 함께 받음
                     String err;
@@ -263,6 +279,13 @@ final class CallServer {
                     o.put("size", a.size());
                     o.put("host", host.appVersion());
                     send(out, 200, JSON, o.toString());
+                    break;
+                }
+                case "/logo": {
+                    // 화면에 넣는 로고 그림 (누구나 — 화면 기기는 허용 없이 받음)
+                    File f = host.logoFile();
+                    if (f == null) send(out, 404, TEXT, "Not Found");
+                    else sendFile(out, f, logoType(f.getName()), range, false);
                     break;
                 }
                 case "/apk": {
@@ -630,6 +653,14 @@ final class CallServer {
     }
 
     /** 파일을 조금씩 보내기 (큰 동영상도 메모리에 올리지 않음), Range 요청이면 해당 구간만 */
+    /** 로고 그림 파일 이름으로 종류 정하기 */
+    static String logoType(String name) {
+        if (name.endsWith(".jpg")) return "image/jpeg";
+        if (name.endsWith(".webp")) return "image/webp";
+        if (name.endsWith(".gif")) return "image/gif";
+        return "image/png";
+    }
+
     static void sendFile(OutputStream out, File f, String type, String range, boolean cacheable) throws IOException {
         long len = f.length();
         long start = 0, end = len - 1;

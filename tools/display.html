@@ -79,6 +79,9 @@ body.free #secHist{flex:1;margin:0;padding:1.5vh 1vh;border-top:0}
 body.free #secWait{display:flex}
 body.free #secHist,body.free #secWait{border-top:0}
 body.free #dot{z-index:9}
+#logoBox{display:none}
+body.free #logoBox{display:flex;position:absolute;align-items:center;justify-content:center;overflow:hidden;z-index:5;pointer-events:none}
+#logoBox img{width:100%;height:100%;object-fit:contain;display:block}
 .off{display:none!important}
 /* ── 호출 팝업 ── */
 #ov{position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,.7);display:none;align-items:center;justify-content:center;opacity:0;transition:opacity .3s;z-index:20}
@@ -124,6 +127,7 @@ body.free #dot{z-index:9}
    <div class="sec" id="secHist"><div class="lbl" id="histLbl">최근 호출</div><div id="hist"><div></div><div></div><div></div><div></div><div></div><div></div></div></div>
    <div class="sec" id="secWait"><div class="lbl">조리중<span class="more" id="waitMore"></span></div><div id="wait" class="g2"></div></div>
   </div>
+  <div id="logoBox"><img id="logoImg" alt=""></div>
  </div>
 </div>
 <div id="closed"><div class="ic">🌙</div><div class="msg" id="closedMsg"></div><div class="sub" id="closedSub"></div></div>
@@ -168,23 +172,31 @@ function speak(text,rep){if(!('speechSynthesis' in window)||rep<=0)return;speech
 // ── 글자 크기 맞춤 ──
 function fit(el,vh){var sec=el.closest?el.closest('.sec'):null,k=sec&&sec.dataset.sc?+sec.dataset.sc:1;var s=vh*k;el.style.fontSize=s+'vh';while(s>2&&el.scrollWidth>el.clientWidth){s*=.92;el.style.fontSize=s+'vh'}}
 // ── 화면 배치 적용: 구역마다 위치(%)·크기(%)·보이기·글자 배율 ──
-var LAY_IDS={left:'left',cur:'secCur',hist:'secHist',wait:'secWait'};
-function applyLayout(L){
+var LAY_IDS={left:'left',cur:'secCur',hist:'secHist',wait:'secWait',logo:'logoBox'};
+function applyLayout(L,hasLogo){
  var cfg=L&&(portrait()?L.p:L.l);
  document.body.classList.toggle('free',!!cfg);
  for(var k in LAY_IDS){var el=$(LAY_IDS[k]),c=cfg&&cfg[k];
   if(!cfg){el.removeAttribute('style');el.classList.remove('off');el.removeAttribute('data-sc');continue}
   c=c||{x:0,y:0,w:10,h:10,on:false,s:1};
   el.style.left=c.x+'%';el.style.top=c.y+'%';el.style.width=c.w+'%';el.style.height=c.h+'%';el.style.zIndex=c.z||1;
-  el.classList.toggle('off',!c.on);el.dataset.sc=c.s||1}
+  el.classList.toggle('off',!c.on||(k==='logo'&&!hasLogo));el.dataset.sc=c.s||1}
 }
+// ── 화면 색 (사용자 설정): 없으면 기본 색 그대로 ──
+var COLOR_VARS={bg:'--bg',panel:'--panel',label:'--label',cur:'--cur',num:'--num',card:'--card'};
+function applyColors(c){var st=document.body.style;
+ for(var k in COLOR_VARS){if(c&&c[k])st.setProperty(COLOR_VARS[k],c[k]);else st.removeProperty(COLOR_VARS[k])}
+ if(c&&c.card)st.setProperty('--card2',c.card);else st.removeProperty('--card2')}
+// ── 로고 그림: 바뀔 때만 다시 받음 ──
+function applyLogo(s){var im=$('logoImg');if(!s.logo){im.removeAttribute('src');im.dataset.v='';return}
+ var v=String(s.logoVer||0);if(im.dataset.v!==v){im.dataset.v=v;im.src='/logo?v='+v}}
 function portrait(){return window.innerHeight>window.innerWidth}
 
 // ── 상태 반영 ──
 function render(s){
  document.body.classList.toggle('calm',s.theme==='calm');
  var kiosk=!!s.kioskOn;document.body.classList.toggle('kiosk',kiosk);
- applyLayout(s.layout);
+ applyLayout(s.layout,!!s.logo);applyLogo(s);applyColors(s.colors);
  $('cur').textContent=s.current||'—';fit($('cur'),portrait()?(kiosk?7:10):13);
  $('histLbl').textContent=kiosk?'현재 호출':'최근 호출';
  var h=s.history||[],d=$('hist').children;
