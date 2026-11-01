@@ -1,4 +1,4 @@
-package com.store.didcall;
+﻿package com.store.didcall;
 
 import android.app.Activity;
 import android.app.AlertDialog;
@@ -39,33 +39,33 @@ final class Tutorial {
                 "🖼 매장 사진·동영상 넣기",
                 "TV에 표시될 매장 사진이나 동영상을 넣습니다.\n\n"
                 + "여러 장을 고르면 자동으로 넘어가며 표시됩니다.",
-                "🖼 이미지 추가", () -> a.runOnUiThread(a::pickImageForTutorial)));
+                "🖼 이미지 추가", () -> a.runOnUiThread(() -> a.pickImageForTutorial())));
         steps.add(new Step(
                 "⌨ 블루투스 키패드",
                 "블루투스 숫자 키패드(텐키)가 있으면 연결해 보세요.\n\n"
                 + "• 연결하면 화면의 버튼 없이 키패드로 번호를 입력하고 [호출]할 수 있습니다\n"
                 + "• 기본 배치는 텐키형입니다 (Enter=호출, +=다음 번호, *=재호출)\n"
                 + "• 키패드가 없으면 화면 버튼으로 똑같이 쓸 수 있습니다",
-                "⌨ 키 설정 보기", () -> a.runOnUiThread(a::showKeySettings)));
+                "⌨ 키 설정 보기", () -> a.runOnUiThread(() -> a.showKeySettings())));
         steps.add(new Step(
                 "🔔 소리 설정 (알림음·목소리)",
                 "TV에서 나올 알림음과 음성을 고릅니다.\n\n"
                 + "기본값: 딩동 + 'OO번 고객님, 주문하신 메뉴가 준비되었습니다'",
-                "🔔 알림음 선택", () -> a.runOnUiThread(a::showChimesForTutorial)));
+                "🔔 알림음 선택", () -> a.runOnUiThread(() -> a.showChimesForTutorial())));
         steps.add(new Step(
                 "🧾 키오스크 주문 연동 (매장에 키오스크가 있을 때)",
                 "키오스크 주문서를 받아 '조리중' 목록에 자동으로 넣습니다.\n\n"
                 + "분기 프로그램의 '네트워크 프린터' 주소를 이 폰의 주소(:9100)로 넣으면\n"
                 + "주문이 들어올 때마다 조리중 목록에 번호가 쌓입니다.\n\n"
                 + "키오스크가 없으면 건너뛰어도 됩니다.",
-                "🧾 키오스크 설정", () -> a.runOnUiThread(a::showKioskForTutorial)));
+                "🧾 키오스크 설정", () -> a.runOnUiThread(() -> a.showKioskForTutorial())));
         steps.add(new Step(
                 "📺 디스플레이 기기 선택",
                 "호출 번호를 보여줄 화면을 정합니다.\n\n"
                 + "📺 안드로이드 TV/스틱 — TV 기기에 이 앱을 설치하고 'TV 화면' 선택 (자동으로 이 폰을 찾음)\n"
                 + "💻 윈도우 PC — 브라우저로 이 폰 주소/display 접속\n"
                 + "📱 다른 태블릿/폰 — 브라우저로 이 폰 주소/display 접속",
-                "📺 연결 방법 보기", () -> a.runOnUiThread(a::showConnectInfoForTutorial)));
+                "📺 연결 방법 보기", () -> a.runOnUiThread(() -> a.showConnectInfoForTutorial())));
         steps.add(new Step(
                 "🎨 TV 화면 배치 (선택)",
                 "TV 화면의 구역(이미지·최근 호출·조리중·로고)을 자유롭게 옮기고 크기를 바꿀 수 있습니다.\n\n"
