@@ -29,7 +29,6 @@ final class DisplayPage {
         ".sec{width:100%;display:flex;flex-direction:column;align-items:center;min-height:0}\n" +
         "#secHist{flex:1;border-top:.3vh solid var(--line);margin-top:2vh;padding-top:1.5vh}\n" +
         ".lbl{color:var(--label);font-weight:700;font-size:3vh;white-space:nowrap}\n" +
-        "#cur{color:var(--cur);font-weight:800;font-size:13vh;line-height:1.1;width:100%;text-align:center;white-space:nowrap;overflow:hidden}\n" +
         "#hist{flex:1;width:100%;display:flex;flex-direction:column;min-height:0}\n" +
         "#hist div{flex:1;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:6.5vh;white-space:nowrap;overflow:hidden;color:var(--num)}\n" +
         "#hist div:nth-child(n+6){display:none}\n" +
@@ -43,7 +42,6 @@ final class DisplayPage {
         ".more{color:var(--label);font-size:2.4vh;font-weight:700;margin-left:.6vh}\n" +
         "body.kiosk .left{flex:80}\n" +
         "body.kiosk .right{flex:20}\n" +
-        "body.kiosk #secCur{display:none}\n" +
         "body.kiosk #secHist{flex:1;border-top:0;margin-top:0;padding-top:0}\n" +
         "body.kiosk #secWait{display:flex;flex:1;border-top:.3vh solid var(--line);margin-top:1.5vh;padding-top:1vh}\n" +
         "body.kiosk #hist{display:grid;grid-template-columns:1fr 1fr;grid-auto-rows:1fr}\n" +
@@ -52,16 +50,14 @@ final class DisplayPage {
         "#dot.ok{background:#4cd964}\n" +
         "#dot.bad{background:#ff5a5a;animation:blink 1s infinite}\n" +
         "@keyframes blink{50%{opacity:.2}}\n" +
-        "/* ── 세로 화면: 위 이미지 / 아래 칸 = 현재 호출 → 구분선 → 최근 호출(한 줄에 2개) ── */\n" +
+        "/* ── 세로 화면: 위 이미지 / 아래 칸 = 최근 호출(한 줄에 2개) ── */\n" +
         "@media (orientation:portrait){\n" +
         " .main{flex-direction:column}\n" +
         " .left{margin-right:0;margin-bottom:1vh;flex:64}\n" +
         " .right{flex:36;padding:1.6vh 3vw}\n" +
         " .sec{justify-content:center}\n" +
-        " #secCur{flex:40}\n" +
         " #secHist{flex:60;margin-top:1vh;padding-top:1vh}\n" +
         " .lbl{font-size:2.3vh}\n" +
-        " #cur{font-size:10vh}\n" +
         " #hist{display:grid;grid-template-columns:1fr 1fr;grid-auto-rows:1fr}\n" +
         " #hist div{font-size:5vh}\n" +
         " #hist div:nth-child(n+5){display:none}\n" +
@@ -69,9 +65,7 @@ final class DisplayPage {
         " #card{min-width:56vw!important;max-width:80vw!important;padding:1.4vh 3vw 2vh!important;border-radius:1.8vh!important}\n" +
         " #pl{font-size:2.6vh!important}\n" +
         " #ps{font-size:2.2vh!important}\n" +
-        " body.kiosk #secCur{display:flex;flex:36;min-height:0}\n" +
-        " body.kiosk #cur{flex:none;line-height:1.2}\n" +
-        " body.kiosk #secHist{display:none}\n" +
+        " body.kiosk #secHist{display:flex;flex:36;min-height:0}\n" +
         " body.kiosk #secWait{flex:66;margin-top:1vh}\n" +
         " body.kiosk #wait{grid-template-columns:1fr 1fr 1fr 1fr}\n" +
         " #start b{font-size:3.6vh}\n" +
@@ -129,7 +123,6 @@ final class DisplayPage {
         "휴대폰 브라우저 또는 호출기 앱에서 추가하세요</div></div>\n" +
         "  <div class=\"right\">\n" +
         "   <div id=\"dot\" title=\"호출기 연결 상태\"></div>\n" +
-        "   <div class=\"sec\" id=\"secCur\"><div class=\"lbl\">현재 호출</div><div id=\"cur\">—</div></div>\n" +
         "   <div class=\"sec\" id=\"secHist\"><div class=\"lbl\" id=\"histLbl\">최근 호출</div><div id=\"hist\"><div></div><div></div><div></div><div></div><div></div><div></div></div></div>\n" +
         "   <div class=\"sec\" id=\"secWait\"><div class=\"lbl\">조리중<span class=\"more\" id=\"waitMore\"></span></div><div id=\"wait\" class=\"g2\"></div></div>\n" +
         "  </div>\n" +
@@ -165,11 +158,11 @@ final class DisplayPage {
         "function loadBuf(url){return fetch(url,{cache:'no-store'}).then(function(r){if(!r.ok)throw 0;return r.arrayBuffer()}).then(function(a){return new Promise(function(ok,no){ac.decodeAudioData(a,ok,no)})})}\n" +
         "function playBuf(buf,done){var src=ac.createBufferSource();src.buffer=buf;src.connect(ac.destination);src.onended=done||null;src.start();return src}\n" +
         "function chime(){if(!ac||ac.state!=='running')return;var key=(S.chime||'')+'/'+(S.chimeVer||0);if(chimeBuf&&key===chimeKey){playBuf(chimeBuf);return}\n" +
-        " loadBuf('/chime?v='+encodeURIComponent(key)).then(function(b){chimeBuf=b;chimeKey=key;playBuf(b)}).catch(synthChime)}\n";
-    private static final String P1 =
+        " loadBuf('/chime?v='+encodeURIComponent(key)).then(function(b){chimeBuf=b;chimeKey=key;playBuf(b)}).catch(synthChime)}\n" +
         "function stopVoice(){playId++;try{if(voiceSrc){voiceSrc.onended=null;voiceSrc.stop()}}catch(e){}voiceSrc=null;if('speechSynthesis' in window)speechSynthesis.cancel()}\n" +
         "function playVoice(url,text,rep){if(rep<=0)return;var id=++playId;\n" +
-        " if(!S.voice||!ac||ac.state!=='running'){speak(text,rep);return}\n" +
+        " if(!S.voice||!ac||ac.state!=='running'){speak(text,rep);return}\n";
+    private static final String P1 =
         " loadBuf(url).then(function(buf){if(id!==playId)return;(function play(k){if(k<=0||id!==playId)return;voiceSrc=playBuf(buf,function(){if(id===playId)speakT=setTimeout(function(){play(k-1)},800)})})(rep)}).catch(function(){if(id===playId)speak(text,rep)})}\n" +
         "function pickVoice(){if(!('speechSynthesis' in window))return;var v=speechSynthesis.getVoices().filter(function(x){return /^ko/i.test(x.lang)});voice=v.filter(function(x){return /Natural|Online/i.test(x.name)})[0]||v[0]||null}\n" +
         "if('speechSynthesis' in window){pickVoice();speechSynthesis.onvoiceschanged=pickVoice}\n" +
@@ -177,7 +170,7 @@ final class DisplayPage {
         "// ── 글자 크기 맞춤 ──\n" +
         "function fit(el,vh){var sec=el.closest?el.closest('.sec'):null,k=sec&&sec.dataset.sc?+sec.dataset.sc:1;var s=vh*k;el.style.fontSize=s+'vh';while(s>2&&el.scrollWidth>el.clientWidth){s*=.92;el.style.fontSize=s+'vh'}}\n" +
         "// ── 화면 배치 적용: 구역마다 위치(%)·크기(%)·보이기·글자 배율 ──\n" +
-        "var LAY_IDS={left:'left',cur:'secCur',hist:'secHist',wait:'secWait',logo:'logoBox'};\n" +
+        "var LAY_IDS={left:'left',hist:'secHist',wait:'secWait',logo:'logoBox'};\n" +
         "function applyLayout(L,hasLogo){\n" +
         " var cfg=L&&(portrait()?L.p:L.l);\n" +
         " document.body.classList.toggle('free',!!cfg);\n" +
@@ -201,13 +194,10 @@ final class DisplayPage {
         " document.body.classList.toggle('calm',s.theme==='calm');\n" +
         " var kiosk=!!s.kioskOn;document.body.classList.toggle('kiosk',kiosk);\n" +
         " applyLayout(s.layout,!!s.logo);applyLogo(s);applyColors(s.colors);\n" +
-        " $('cur').textContent=s.current||'—';fit($('cur'),portrait()?(kiosk?7:10):13);\n" +
-        " $('histLbl').textContent=kiosk?'현재 호출':'최근 호출';\n" +
+        " $('histLbl').textContent='최근 호출';\n" +
         " var h=s.history||[],d=$('hist').children;\n" +
-        " // 키오스크 모드: '현재 호출' 칸 = 방금 부른 번호(노란색) + 최근 호출, 한 줄에 2개\n" +
-        " var now=s.current?((s.group&&s.group.length)?s.group:[s.current]):[];\n" +
-        " var list=kiosk?now.concat(h):h;\n" +
-        " for(var i=0;i<d.length;i++){d[i].textContent=list[i]||'';d[i].className=(kiosk&&i<now.length)?'now':'';fit(d[i],kiosk?5.5:(portrait()?5:6.5))}\n" +
+        " var list=h;\n" +
+        " for(var i=0;i<d.length;i++){d[i].textContent=list[i]||'';fit(d[i],portrait()?5:6.5)}\n" +
         " renderWait(s.waiting||[]);\n" +
         " $('left').classList.toggle('cover',s.fit==='cover');\n" +
         " $('closedMsg').textContent=s.closeMsg||'';\n" +
@@ -302,5 +292,5 @@ final class DisplayPage {
         "})();\n" +
         "</script></body></html>\n";
 
-    static final String HTML = new StringBuilder(23030).append(P0).append(P1).toString();
+    static final String HTML = new StringBuilder(22333).append(P0).append(P1).toString();
 }

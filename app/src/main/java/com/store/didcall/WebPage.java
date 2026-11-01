@@ -141,7 +141,7 @@ final class WebPage {
         "<label class=\"ck\">배경 <input type=\"color\" id=\"col_bg\" style=\"width:44px;height:32px;margin:0 0 0 auto;padding:0\"></label>\n" +
         "<label class=\"ck\">칸 배경 <input type=\"color\" id=\"col_panel\" style=\"width:44px;height:32px;margin:0 0 0 auto;padding:0\"></label>\n" +
         "<label class=\"ck\">글자 (이름·라벨) <input type=\"color\" id=\"col_label\" style=\"width:44px;height:32px;margin:0 0 0 auto;padding:0\"></label>\n" +
-        "<label class=\"ck\">현재 호출 번호 <input type=\"color\" id=\"col_cur\" style=\"width:44px;height:32px;margin:0 0 0 auto;padding:0\"></label>\n" +
+        "<label class=\"ck\">강조 번호 (방금 부른 번호) <input type=\"color\" id=\"col_cur\" style=\"width:44px;height:32px;margin:0 0 0 auto;padding:0\"></label>\n" +
         "<label class=\"ck\">최근·조리중 번호 <input type=\"color\" id=\"col_num\" style=\"width:44px;height:32px;margin:0 0 0 auto;padding:0\"></label>\n" +
         "<label class=\"ck\">호출 팝업 배경 <input type=\"color\" id=\"col_card\" style=\"width:44px;height:32px;margin:0 0 0 auto;padding:0\"></label>\n" +
         "<div class=\"two\"><button class=\"sm\" onclick=\"saveColors()\">저장</button><button class=\"sm\" onclick=\"resetColors()\">기본 색으로</button></div>\n" +
@@ -268,19 +268,20 @@ final class WebPage {
         "function toggleClosed(){api('/closing?on='+(S.closed?0:1)).then(function(s){if(s&&s.ok)msg(s.closed?'🌙 마감을 안내했습니다':'마감 표시를 껐습니다')})}\n" +
         "// ── 화면 배치: 구역을 끌어서 옮기고(노란 모서리로 크기 조절) 저장 → TV·PC 화면에 반영 ──\n" +
         "var LAY={l:null,p:null},layTab='l',layLoaded=false,layBound=false,layDrag=null;\n" +
-        "var LAY_NAMES={left:'이미지·동영상',cur:'현재 호출',hist:'최근 호출',wait:'조리중',logo:'로고'};\n" +
+        "var LAY_NAMES={left:'이미지·동영상',hist:'최근 호출',wait:'조리중',logo:'로고'};\n" +
         "var LAY_PRESETS={\n" +
-        " l:{basic:{left:[0,0,84,100],cur:[84,0,16,50],hist:[84,50,16,50]},\n" +
-        "    flip:{left:[16,0,84,100],cur:[0,0,16,50],hist:[0,50,16,50]},\n" +
-        "    big:{left:[0,0,70,100],cur:[70,0,30,45,1.5],hist:[70,45,30,55,1.25]}},\n" +
-        " p:{basic:{left:[0,0,100,64],cur:[0,64,100,14],hist:[0,78,100,22]},\n" +
-        "    flip:{left:[0,36,100,64],cur:[0,0,100,14],hist:[0,14,100,22]},\n" +
-        "    big:{left:[0,0,100,70],cur:[0,70,100,12,1.5],hist:[0,82,100,18,1.25]}}};\n" +
+        " l:{basic:{left:[0,0,84,100],hist:[84,0,16,100]},\n" +
+        "    flip:{left:[16,0,84,100],hist:[0,0,16,100]},\n" +
+        "    big:{left:[0,0,70,100],hist:[70,0,30,100,1.25]}},\n" +
+        " p:{basic:{left:[0,0,100,70],hist:[0,70,100,30]},\n" +
+        "    flip:{left:[0,30,100,70],hist:[0,0,100,30]},\n" +
+        "    big:{left:[0,0,100,78],hist:[0,78,100,22,1.25]}}};\n" +
         "function layFrom(t,name){var P=LAY_PRESETS[t][name],o={};\n" +
         " for(var k in P){var a=P[k];o[k]={x:a[0],y:a[1],w:a[2],h:a[3],on:true,s:a[4]||1}}\n" +
         " o.wait={x:o.hist.x,y:o.hist.y,w:o.hist.w,h:o.hist.h,on:false,s:1};\n" +
         " o.logo={x:84,y:0,w:16,h:20,on:false,s:1};return o}\n" +
-        "function layFix(c){ // 예전에 저장한 배치에는 로고 칸이 없을 수 있어서 채워 둠\n" +
+        "function layFix(c){ // 예전 저장 배치 정리: '현재 호출'(cur) 구역은 없애고 로고 칸이 없으면 채움\n" +
+        " if(c.cur)delete c.cur;\n" +
         " if(!c.logo)c.logo={x:84,y:0,w:16,h:20,on:false,s:1};return c}\n" +
         "function uploadLogo(f){if(!f)return;if(f.size>5*1048576){msg('로고 그림은 5MB 이하만');return}\n" +
         " $('logoNote').textContent='로고 보내는 중…';post('/logo/upload',f).then(function(s){if(s.auth){requestAuth();return}\n" +
@@ -364,5 +365,5 @@ final class WebPage {
         "api('/status');setInterval(function(){fetch(withTok('/status'),{cache:'no-store'}).then(function(r){return r.json()}).then(render).catch(function(){})},3000);\n" +
         "</script></body></html>\n";
 
-    static final String HTML = new StringBuilder(34377).append(P0).append(P1).append(P2).toString();
+    static final String HTML = new StringBuilder(34307).append(P0).append(P1).append(P2).toString();
 }

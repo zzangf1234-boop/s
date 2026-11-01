@@ -22,7 +22,6 @@ body{background:var(--bg)}
 .sec{width:100%;display:flex;flex-direction:column;align-items:center;min-height:0}
 #secHist{flex:1;border-top:.3vh solid var(--line);margin-top:2vh;padding-top:1.5vh}
 .lbl{color:var(--label);font-weight:700;font-size:3vh;white-space:nowrap}
-#cur{color:var(--cur);font-weight:800;font-size:13vh;line-height:1.1;width:100%;text-align:center;white-space:nowrap;overflow:hidden}
 #hist{flex:1;width:100%;display:flex;flex-direction:column;min-height:0}
 #hist div{flex:1;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:6.5vh;white-space:nowrap;overflow:hidden;color:var(--num)}
 #hist div:nth-child(n+6){display:none}
@@ -36,7 +35,6 @@ body.calm #hist div:nth-child(2){opacity:.86}body.calm #hist div:nth-child(3){op
 .more{color:var(--label);font-size:2.4vh;font-weight:700;margin-left:.6vh}
 body.kiosk .left{flex:80}
 body.kiosk .right{flex:20}
-body.kiosk #secCur{display:none}
 body.kiosk #secHist{flex:1;border-top:0;margin-top:0;padding-top:0}
 body.kiosk #secWait{display:flex;flex:1;border-top:.3vh solid var(--line);margin-top:1.5vh;padding-top:1vh}
 body.kiosk #hist{display:grid;grid-template-columns:1fr 1fr;grid-auto-rows:1fr}
@@ -45,16 +43,14 @@ body.kiosk #hist div{display:flex!important;opacity:1!important;font-size:5.5vh}
 #dot.ok{background:#4cd964}
 #dot.bad{background:#ff5a5a;animation:blink 1s infinite}
 @keyframes blink{50%{opacity:.2}}
-/* ── 세로 화면: 위 이미지 / 아래 칸 = 현재 호출 → 구분선 → 최근 호출(한 줄에 2개) ── */
+/* ── 세로 화면: 위 이미지 / 아래 칸 = 최근 호출(한 줄에 2개) ── */
 @media (orientation:portrait){
  .main{flex-direction:column}
  .left{margin-right:0;margin-bottom:1vh;flex:64}
  .right{flex:36;padding:1.6vh 3vw}
  .sec{justify-content:center}
- #secCur{flex:40}
  #secHist{flex:60;margin-top:1vh;padding-top:1vh}
  .lbl{font-size:2.3vh}
- #cur{font-size:10vh}
  #hist{display:grid;grid-template-columns:1fr 1fr;grid-auto-rows:1fr}
  #hist div{font-size:5vh}
  #hist div:nth-child(n+5){display:none}
@@ -62,9 +58,7 @@ body.kiosk #hist div{display:flex!important;opacity:1!important;font-size:5.5vh}
  #card{min-width:56vw!important;max-width:80vw!important;padding:1.4vh 3vw 2vh!important;border-radius:1.8vh!important}
  #pl{font-size:2.6vh!important}
  #ps{font-size:2.2vh!important}
- body.kiosk #secCur{display:flex;flex:36;min-height:0}
- body.kiosk #cur{flex:none;line-height:1.2}
- body.kiosk #secHist{display:none}
+ body.kiosk #secHist{display:flex;flex:36;min-height:0}
  body.kiosk #secWait{flex:66;margin-top:1vh}
  body.kiosk #wait{grid-template-columns:1fr 1fr 1fr 1fr}
  #start b{font-size:3.6vh}
@@ -123,7 +117,6 @@ body.free #logoBox{display:flex;position:absolute;align-items:center;justify-con
 휴대폰 브라우저 또는 호출기 앱에서 추가하세요</div></div>
   <div class="right">
    <div id="dot" title="호출기 연결 상태"></div>
-   <div class="sec" id="secCur"><div class="lbl">현재 호출</div><div id="cur">—</div></div>
    <div class="sec" id="secHist"><div class="lbl" id="histLbl">최근 호출</div><div id="hist"><div></div><div></div><div></div><div></div><div></div><div></div></div></div>
    <div class="sec" id="secWait"><div class="lbl">조리중<span class="more" id="waitMore"></span></div><div id="wait" class="g2"></div></div>
   </div>
@@ -172,7 +165,7 @@ function speak(text,rep){if(!('speechSynthesis' in window)||rep<=0)return;speech
 // ── 글자 크기 맞춤 ──
 function fit(el,vh){var sec=el.closest?el.closest('.sec'):null,k=sec&&sec.dataset.sc?+sec.dataset.sc:1;var s=vh*k;el.style.fontSize=s+'vh';while(s>2&&el.scrollWidth>el.clientWidth){s*=.92;el.style.fontSize=s+'vh'}}
 // ── 화면 배치 적용: 구역마다 위치(%)·크기(%)·보이기·글자 배율 ──
-var LAY_IDS={left:'left',cur:'secCur',hist:'secHist',wait:'secWait',logo:'logoBox'};
+var LAY_IDS={left:'left',hist:'secHist',wait:'secWait',logo:'logoBox'};
 function applyLayout(L,hasLogo){
  var cfg=L&&(portrait()?L.p:L.l);
  document.body.classList.toggle('free',!!cfg);
@@ -197,13 +190,10 @@ function render(s){
  document.body.classList.toggle('calm',s.theme==='calm');
  var kiosk=!!s.kioskOn;document.body.classList.toggle('kiosk',kiosk);
  applyLayout(s.layout,!!s.logo);applyLogo(s);applyColors(s.colors);
- $('cur').textContent=s.current||'—';fit($('cur'),portrait()?(kiosk?7:10):13);
- $('histLbl').textContent=kiosk?'현재 호출':'최근 호출';
+ $('histLbl').textContent='최근 호출';
  var h=s.history||[],d=$('hist').children;
- // 키오스크 모드: '현재 호출' 칸 = 방금 부른 번호(노란색) + 최근 호출, 한 줄에 2개
- var now=s.current?((s.group&&s.group.length)?s.group:[s.current]):[];
- var list=kiosk?now.concat(h):h;
- for(var i=0;i<d.length;i++){d[i].textContent=list[i]||'';d[i].className=(kiosk&&i<now.length)?'now':'';fit(d[i],kiosk?5.5:(portrait()?5:6.5))}
+ var list=h;
+ for(var i=0;i<d.length;i++){d[i].textContent=list[i]||'';fit(d[i],portrait()?5:6.5)}
  renderWait(s.waiting||[]);
  $('left').classList.toggle('cover',s.fit==='cover');
  $('closedMsg').textContent=s.closeMsg||'';

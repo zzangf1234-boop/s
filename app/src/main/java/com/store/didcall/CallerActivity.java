@@ -95,6 +95,12 @@ public class CallerActivity extends Activity implements VoiceRecorder.Host {
         applyOrientation();
         buildUi();
         HostService.start(this);
+        // 첫 실행 튜토리얼 (역할을 처음 곌랐을 때만)
+        if (getIntent().getBooleanExtra(MainActivity.EXTRA_TUTORIAL, false)) {
+            Tutorial.showCaller(this,
+                    () -> prefs.edit().putBoolean(MainActivity.KEY_TUTORIAL_DONE, true).apply(),
+                    () -> prefs.edit().putBoolean(MainActivity.KEY_TUTORIAL_DONE, true).apply());
+        }
         if (Build.VERSION.SDK_INT >= 33
                 && checkSelfPermission("android.permission.POST_NOTIFICATIONS") != PackageManager.PERMISSION_GRANTED) {
             requestPermissions(new String[]{"android.permission.POST_NOTIFICATIONS"}, 1);
@@ -648,6 +654,12 @@ public class CallerActivity extends Activity implements VoiceRecorder.Host {
         }
     }
 
+    // ───────────────────────── 튜토리얼용 래퍼 (Tutorial.java 에서 호출) ─────────────────────────
+    void pickImageForTutorial() { pickMedia("image/*", REQ_IMAGES, "TV에 띄울 이미지 선택"); }
+    void showChimesForTutorial() { showChimes(); }
+    void showKioskForTutorial() { showKiosk(); }
+    void showConnectInfoForTutorial() { showConnectInfo(); }
+
     // ───────────────────────── 메뉴 ─────────────────────────
     private void showMenu() {
         String[] items = {
@@ -704,6 +716,7 @@ public class CallerActivity extends Activity implements VoiceRecorder.Host {
                         case 15:
                             HostService.stop(this);
                             prefs.edit().remove(MainActivity.KEY_MODE).apply();
+                            prefs.edit().remove(MainActivity.KEY_TUTORIAL_DONE).apply();
                             startActivity(new Intent(this, MainActivity.class).putExtra(MainActivity.EXTRA_CHOOSE, true));
                             finish();
                             break;

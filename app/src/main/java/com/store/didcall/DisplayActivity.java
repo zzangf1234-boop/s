@@ -96,6 +96,12 @@ public class DisplayActivity extends Activity {
         buildUi();
         host = prefs.getString(K_HOST, "");
         startSearch();
+        // 첫 실행 튜토리얼 (역할을 처음 골랐을 때만)
+        if (getIntent().getBooleanExtra(MainActivity.EXTRA_TUTORIAL, false)) {
+            Tutorial.showTv(this,
+                    () -> prefs.edit().putBoolean(MainActivity.KEY_TUTORIAL_DONE, true).apply(),
+                    () -> prefs.edit().putBoolean(MainActivity.KEY_TUTORIAL_DONE, true).apply());
+        }
     }
 
     @Override
@@ -465,6 +471,7 @@ public class DisplayActivity extends Activity {
                         showManualDialog();
                     } else if (which == 5) {
                         prefs.edit().remove(MainActivity.KEY_MODE).apply();
+                        prefs.edit().remove(MainActivity.KEY_TUTORIAL_DONE).apply();
                         startActivity(new Intent(this, MainActivity.class).putExtra(MainActivity.EXTRA_CHOOSE, true));
                         finish();
                     } else if (which == 6) {

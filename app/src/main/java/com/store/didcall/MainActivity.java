@@ -1,6 +1,7 @@
 package com.store.didcall;
 
 import android.app.Activity;
+import android.app.AlertDialog;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.net.Uri;
@@ -10,10 +11,11 @@ import android.provider.Settings;
 import android.view.Gravity;
 import android.widget.Button;
 import android.widget.LinearLayout;
+import android.widget.ScrollView;
 import android.widget.TextView;
 import android.widget.Toast;
 
-/** 처음 실행 시 이 기기의 역할(TV 화면 / 호출기)을 고르는 화면 */
+/** 처음 실행 시 이 기기의 역할(TV 화면 / 호출기)을 고르고, 고르면 단계별 설정 튜토리얼을 보여 줌 */
 public class MainActivity extends Activity {
 
     static final String PREFS = "didcall";
@@ -21,6 +23,8 @@ public class MainActivity extends Activity {
     static final String MODE_TV = "tv";
     static final String MODE_CALLER = "caller";
     static final String EXTRA_CHOOSE = "choose";
+    static final String KEY_TUTORIAL_DONE = "tutorial_done";
+    static final String EXTRA_TUTORIAL = "tutorial";
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -79,12 +83,14 @@ public class MainActivity extends Activity {
     }
 
     private void choose(String mode) {
-        getSharedPreferences(PREFS, MODE_PRIVATE).edit().putString(KEY_MODE, mode).apply();
+        SharedPreferences p = getSharedPreferences(PREFS, MODE_PRIVATE);
+        p.edit().putString(KEY_MODE, mode).apply();
         if (MODE_TV.equals(mode)) {
             askAutoStartPermission();
-            open(DisplayActivity.class);
+            open(new Intent(this, DisplayActivity.class).putExtra(MainActivity.EXTRA_TUTORIAL, true));
         } else {
-            open(CallerActivity.class);
+            open(new Intent(this, CallerActivity.class).putExtra(EXTRA_TUTORIAL,
+                    !p.getBoolean(KEY_TUTORIAL_DONE, false)));
         }
     }
 
@@ -103,6 +109,11 @@ public class MainActivity extends Activity {
 
     private void open(Class<?> cls) {
         startActivity(new Intent(this, cls));
+        finish();
+    }
+
+    private void open(Intent i) {
+        startActivity(i);
         finish();
     }
 }
