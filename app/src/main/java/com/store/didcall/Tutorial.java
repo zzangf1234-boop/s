@@ -46,7 +46,7 @@ final class Tutorial {
                 + "• 연결하면 화면의 버튼 없이 키패드로 번호를 입력하고 [호출]할 수 있습니다\n"
                 + "• 기본 배치는 텐키형입니다 (Enter=호출, +=다음 번호, *=재호출)\n"
                 + "• 키패드가 없으면 화면 버튼으로 똑같이 쓸 수 있습니다",
-                "⌨ 키 설정 보기", () -> a.runOnUiThread(() -> a.showKeySettings())));
+                "⌨ 키 설정 보기", () -> a.runOnUiThread(() -> a.showKeySettingsForTutorial())));
         steps.add(new Step(
                 "🔔 소리 설정 (알림음·목소리)",
                 "TV에서 나올 알림음과 음성을 고릅니다.\n\n"

@@ -657,6 +657,7 @@ public class CallerActivity extends Activity implements VoiceRecorder.Host {
     // ───────────────────────── 튜토리얼용 래퍼 (Tutorial.java 에서 호출) ─────────────────────────
     void pickImageForTutorial() { pickMedia("image/*", REQ_IMAGES, "TV에 띄울 이미지 선택"); }
     void showChimesForTutorial() { showChimes(); }
+    void showKeySettingsForTutorial() { showKeySettings(); }
     void showKioskForTutorial() { showKiosk(); }
     void showConnectInfoForTutorial() { showConnectInfo(); }
 
