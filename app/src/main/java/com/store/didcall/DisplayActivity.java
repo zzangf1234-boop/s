@@ -428,8 +428,7 @@ public class DisplayActivity extends Activity {
     }
 
     @SuppressWarnings("deprecation")
-    private void showScreenInfo() {
-        android.util.DisplayMetrics dm = new android.util.DisplayMetrics();
+    private void showScreenInfo() {        android.util.DisplayMetrics dm = new android.util.DisplayMetrics();
         getWindowManager().getDefaultDisplay().getRealMetrics(dm);
         StringBuilder b = new StringBuilder();
         b.append("앱이 그리는 해상도: ").append(dm.widthPixels).append(" × ").append(dm.heightPixels)
@@ -479,5 +478,19 @@ public class DisplayActivity extends Activity {
                     }
                 })
                 .show();
+    }
+
+    // ───────────────────────── 튜토리얼용 래퍼 (Tutorial.java 에서 호출) ─────────────────────────
+    void askAutoStartForTutorial() {
+        askAutoStartPermission();
+    }
+
+    void chooseRotationForTutorial() {
+        chooseRotation();
+    }
+
+    void showManualDialogForTutorial() {
+        searchPane.setVisibility(View.VISIBLE);
+        showManualDialog();
     }
 }

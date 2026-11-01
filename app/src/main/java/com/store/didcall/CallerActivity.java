@@ -660,6 +660,10 @@ public class CallerActivity extends Activity implements VoiceRecorder.Host {
     void showKeySettingsForTutorial() { showKeySettings(); }
     void showKioskForTutorial() { showKiosk(); }
     void showConnectInfoForTutorial() { showConnectInfo(); }
+    void openBrowserForTutorial() {
+        try { startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse(BASE + "/"))); }
+        catch (Exception e) { msg("브라우저를 열 수 없습니다"); }
+    }
 
     // ───────────────────────── 메뉴 ─────────────────────────
     private void showMenu() {

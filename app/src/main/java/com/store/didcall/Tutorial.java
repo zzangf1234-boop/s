@@ -72,7 +72,7 @@ final class Tutorial {
                 + "⚙ 메뉴 → '이미지·동영상 관리 · 기타 설정 (브라우저)' → 화면 배치\n\n"
                 + "구역을 끌어서 옮기고, 모서리로 크기 조절, 체크로 보이기/숨기기.\n"
                 + "기본 배치로도 바로 쓸 수 있으니 나중에 해도 됩니다.",
-                null, null));
+                "🎨 화면 배치 열기", () -> a.runOnUiThread(() -> a.openBrowserForTutorial())));
         steps.add(new Step(
                 "✅ 마지막으로",
                 "TV가 이 폰을 찾으면 화면 상단에 'TV/PC 화면 N대 연결됨'이 초록색으로 표시됩니다.\n\n"
@@ -82,7 +82,7 @@ final class Tutorial {
     }
 
     /** TV(수신기) 튜토리얼 */
-    static void showTv(Activity a, Runnable done, Runnable skip) {
+    static void showTv(DisplayActivity a, Runnable done, Runnable skip) {
         List<Step> steps = new ArrayList<>();
         steps.add(new Step(
                 "📺 TV 화면으로 쓸게요",
@@ -93,14 +93,13 @@ final class Tutorial {
         steps.add(new Step(
                 "⚡ 부팅 시 자동 실행",
                 "TV를 켤 때마다 이 앱이 자동으로 열리려면 권한이 필요합니다.\n\n"
-                + "설정 → '다른 앱 위에 표시'를 허용하면 부팅 후 자동으로 실행됩니다.",
-                null, null));
+                + "[지금 설정]을 누르면 권한 화면이 열립니다 — 'DID 번호호출'을 허용해 주세요.",
+                "⚡ 지금 설정", () -> a.runOnUiThread(() -> a.askAutoStartForTutorial())));
         steps.add(new Step(
                 "🔄 화면 방향",
                 "TV를 세로로 돌려 세웠다면 화면도 돌려야 합니다.\n\n"
-                + "뒤로 버튼 → '화면 방향 (세로 거치)'에서 선택\n\n"
-                + "가로로 쓰면 그대로 두면 됩니다.",
-                null, null));
+                + "[지금 설정]을 눌러 방향을 고르세요. 가로로 쓰면 '가로 (기본)' 그대로 두면 됩니다.",
+                "🔄 방향 고르기", () -> a.runOnUiThread(() -> a.chooseRotationForTutorial())));
         steps.add(new Step(
                 "🖼 이미지 위치 (선택)",
                 "이미지·동영상이 표시되는 위치와 크기는 호출기 폰에서 정합니다.\n\n"
@@ -110,11 +109,8 @@ final class Tutorial {
         steps.add(new Step(
                 "✅ 완료",
                 "호출기 폰이 켜져 있으면 곧 호출 번호가 표시됩니다.\n\n"
-                + "'호출기를 찾지 못했습니다'가 계속 보이면:\n"
-                + "① 호출기 폰의 DID 앱이 켜져 있는지\n"
-                + "② 같은 와이파이인지\n"
-                + "③ [주소 직접 입력]으로 호출기 앱 상단의 주소 입력",
-                null, null));
+                + "'호출기를 찾지 못했습니다'가 계속 보이면 [주소 입력]으로 호출기 앱 상단의 주소를 넣어 주세요.",
+                "🔢 주소 직접 입력", () -> a.runOnUiThread(() -> a.showManualDialogForTutorial())));
         run(a, "TV 화면 설정", steps, done, skip);
     }
 
