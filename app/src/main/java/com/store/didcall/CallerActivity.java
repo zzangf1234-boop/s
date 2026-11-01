@@ -69,7 +69,7 @@ public class CallerActivity extends Activity implements VoiceRecorder.Host {
     private final ExecutorService up = Executors.newSingleThreadExecutor();
     private SharedPreferences prefs;
 
-    private TextView statusView, addrView, inputView, currentView, msgView;
+    private TextView statusView, addrView, inputView, msgView;
     private LinearLayout waitBar, waitBox;
     private TextView waitLabel;
     private String waitSig = null;
@@ -187,12 +187,6 @@ public class CallerActivity extends Activity implements VoiceRecorder.Host {
         return top;
     }
 
-    private TextView makeCurrent() {
-        currentView = Ui.text(this, "현재 호출 번호: -", 15, Ui.MUTED, false);
-        currentView.setPadding(0, Ui.dp(this, 4), 0, Ui.dp(this, 8));
-        return currentView;
-    }
-
     private TextView makeInput(float sp) {
         inputView = Ui.text(this, "", sp, Ui.YELLOW, true);
         inputView.setGravity(Gravity.CENTER);
@@ -307,7 +301,6 @@ public class CallerActivity extends Activity implements VoiceRecorder.Host {
         root.setBackgroundColor(Ui.BG);
         root.setPadding(Ui.dp(this, 14), Ui.dp(this, 14), Ui.dp(this, 14), Ui.dp(this, 14));
         root.addView(header());
-        root.addView(makeCurrent());
         root.addView(makeWaiting());
         root.addView(makeInput(kp ? 60 : 130), new LinearLayout.LayoutParams(-1, kp ? Ui.dp(this, 108) : Ui.dp(this, 200)));
         if (kp) {
@@ -350,7 +343,6 @@ public class CallerActivity extends Activity implements VoiceRecorder.Host {
         LinearLayout left = new LinearLayout(this);
         left.setOrientation(LinearLayout.VERTICAL);
         left.addView(header());
-        left.addView(makeCurrent());
         left.addView(makeWaiting());
         left.addView(makeInput(kp ? 64 : 90), new LinearLayout.LayoutParams(-1, 0, 1f));
         LinearLayout.LayoutParams aLp = new LinearLayout.LayoutParams(-1, Ui.dp(this, 52));
@@ -550,10 +542,6 @@ public class CallerActivity extends Activity implements VoiceRecorder.Host {
         renderWaiting(s);
         setStatus(true, s.optInt("displays", 0));
         String cur = s.optString("current", "");
-        if (currentView != null) {
-            currentView.setText("현재 호출 번호: " + (cur.isEmpty() ? "-" : cur)
-                    + (s.optBoolean("closed") ? "   ·   🌙 영업 마감 표시 중" : ""));
-        }
         try { if (lastSent == 0 && !cur.isEmpty()) lastSent = Integer.parseInt(cur); } catch (Exception ignored) {}
         JSONArray pend = s.optJSONArray("pending");
         if (pend != null) {

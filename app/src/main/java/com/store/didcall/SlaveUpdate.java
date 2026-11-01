@@ -60,7 +60,10 @@ final class SlaveUpdate {
                         .authority(c.getPackageName() + ".apk")
                         .path(apk.getName())
                         .build();
+                // 설치 앱이 APK 를 읽을 수 있도록 읽기 권한 부여 (FLAG_GRANT 만으로 부족한 기기가 있어
+                // grantUriPermission 으로도 넣어 줌)
                 i.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+                try { c.grantUriPermission(c.getPackageName(), uri, Intent.FLAG_GRANT_READ_URI_PERMISSION); } catch (Exception ignored) {}
             } else {
                 uri = Uri.fromFile(apk);
             }
