@@ -138,9 +138,11 @@ final class PrintReceiver {
                 }
                 // 중계하지 않을 때는 프린터 상태 물음(DLE EOT n)에 '정상'으로 답해 줌
                 if (toPrinter == null) {
+                    StringBuilder acks = new StringBuilder();
                     for (int i = 0; i + 2 < r; i++) {
-                        if (buf[i] == 0x10 && buf[i + 1] == 0x04) back.write(buf[i + 2] == 1 ? 0x16 : 0x12);
+                        if (buf[i] == 0x10 && buf[i + 1] == 0x04) acks.append((char)(buf[i + 2] == 1 ? 0x16 : 0x12));
                     }
+                    if (acks.length() > 0) back.write(acks.toString().getBytes("ISO-8859-1"));
                     back.flush();
                 }
             }
