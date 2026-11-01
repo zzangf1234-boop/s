@@ -5,6 +5,7 @@ import android.app.Activity;
 import android.app.AlertDialog;
 import android.content.Intent;
 import android.content.SharedPreferences;
+import android.provider.Settings;
 import android.graphics.Color;
 import android.os.Bundle;
 import android.os.Handler;
@@ -481,8 +482,19 @@ public class DisplayActivity extends Activity {
     }
 
     // ───────────────────────── 튜토리얼용 래퍼 (Tutorial.java 에서 호출) ─────────────────────────
+    /** Android 10 이상에서 부팅 후 자동 실행되려면 '다른 앱 위에 표시' 권한이 필요 */
     void askAutoStartForTutorial() {
-        askAutoStartPermission();
+        if (Build.VERSION.SDK_INT >= 29 && !Settings.canDrawOverlays(this)) {
+            try {
+                Toast.makeText(this, "부팅 시 자동 실행을 원하면 'DID 번호호출'을 허용해 주세요", Toast.LENGTH_LONG).show();
+                startActivity(new Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                        Uri.parse("package:" + getPackageName())));
+            } catch (Exception ignored) {
+                // 일부 TV 기기에는 이 설정 화면이 없음 — 무시
+            }
+        } else {
+            Toast.makeText(this, "이미 권한이 허용되어 있습니다", Toast.LENGTH_SHORT).show();
+        }
     }
 
     void chooseRotationForTutorial() {
