@@ -70,6 +70,16 @@ body.kiosk #hist div{display:flex!important;opacity:1!important;font-size:5.5vh}
  #start b{font-size:3.6vh}
  #start span{font-size:2vh}
 }
+/* ── 화면 배치 (사용자 설정): 구역을 위치·크기로 자유롭게 배치 (설정이 없으면 기본 배치 그대로) ── */
+body.free .main{position:absolute;top:1vh;left:1vh;right:1vh;bottom:1vh;display:block}
+body.free .left{position:absolute;margin:0;flex:none}
+body.free .right{position:absolute;top:0;left:0;right:0;bottom:0;display:block;background:none;padding:0;border-radius:0}
+body.free .sec{position:absolute;margin:0;padding:1.5vh 1vh;background:var(--panel);border-radius:1.2vh;overflow:hidden;border:0;display:flex;flex-direction:column;align-items:center;min-height:0}
+body.free #secHist{flex:1;margin:0;padding:1.5vh 1vh;border-top:0}
+body.free #secWait{display:flex}
+body.free #secHist,body.free #secWait{border-top:0}
+body.free #dot{z-index:9}
+.off{display:none!important}
 /* ── 호출 팝업 ── */
 #ov{position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,.7);display:none;align-items:center;justify-content:center;opacity:0;transition:opacity .3s;z-index:20}
 #ov.show{display:flex}
@@ -156,13 +166,25 @@ if('speechSynthesis' in window){pickVoice();speechSynthesis.onvoiceschanged=pick
 function speak(text,rep){if(!('speechSynthesis' in window)||rep<=0)return;speechSynthesis.cancel();(function say(k){if(k<=0)return;var u=new SpeechSynthesisUtterance(text);u.lang='ko-KR';if(voice)u.voice=voice;u.rate=.95;u.onend=function(){speakT=setTimeout(function(){say(k-1)},800)};speechSynthesis.speak(u)})(rep)}
 
 // ── 글자 크기 맞춤 ──
-function fit(el,vh){var s=vh;el.style.fontSize=s+'vh';while(s>2&&el.scrollWidth>el.clientWidth){s*=.92;el.style.fontSize=s+'vh'}}
+function fit(el,vh){var sec=el.closest?el.closest('.sec'):null,k=sec&&sec.dataset.sc?+sec.dataset.sc:1;var s=vh*k;el.style.fontSize=s+'vh';while(s>2&&el.scrollWidth>el.clientWidth){s*=.92;el.style.fontSize=s+'vh'}}
+// ── 화면 배치 적용: 구역마다 위치(%)·크기(%)·보이기·글자 배율 ──
+var LAY_IDS={left:'left',cur:'secCur',hist:'secHist',wait:'secWait'};
+function applyLayout(L){
+ var cfg=L&&(portrait()?L.p:L.l);
+ document.body.classList.toggle('free',!!cfg);
+ for(var k in LAY_IDS){var el=$(LAY_IDS[k]),c=cfg&&cfg[k];
+  if(!cfg){el.removeAttribute('style');el.classList.remove('off');el.removeAttribute('data-sc');continue}
+  c=c||{x:0,y:0,w:10,h:10,on:false,s:1};
+  el.style.left=c.x+'%';el.style.top=c.y+'%';el.style.width=c.w+'%';el.style.height=c.h+'%';el.style.zIndex=c.z||1;
+  el.classList.toggle('off',!c.on);el.dataset.sc=c.s||1}
+}
 function portrait(){return window.innerHeight>window.innerWidth}
 
 // ── 상태 반영 ──
 function render(s){
  document.body.classList.toggle('calm',s.theme==='calm');
  var kiosk=!!s.kioskOn;document.body.classList.toggle('kiosk',kiosk);
+ applyLayout(s.layout);
  $('cur').textContent=s.current||'—';fit($('cur'),portrait()?(kiosk?7:10):13);
  $('histLbl').textContent=kiosk?'현재 호출':'최근 호출';
  var h=s.history||[],d=$('hist').children;

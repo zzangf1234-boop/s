@@ -61,6 +61,8 @@ public class HostService extends Service implements CallServer.Host {
     static final String K_OPEN = "open", K_CLOSE = "close", K_CLOSE_MSG = "closeMsg", K_CLOSE_ON = "closeOn";
     /** 키오스크 주문서 받기: 사용 여부, 중계할 주방 프린터 주소, 주문번호 앞 글자 */
     static final String K_KIOSK_ON = "kioskOn", K_RELAY = "relay", K_ORDER_LABEL = "orderLabel";
+    /** 화면 배치(구역 위치·크기·보이기): {"l":{...},"p":{...}} JSON 문자열 (비어 있으면 기본 배치) */
+    static final String K_LAYOUT = "layout";
     private static final String K_CLOSED = "closed", K_CLOSE_SEQ = "closeSeq", K_STATE = "callState", K_AUTH = "authDevices";
 
     static final String DEF_TTS = "{n}번 고객님, 주문하신 메뉴가 준비되었습니다.";
@@ -286,6 +288,33 @@ public class HostService extends Service implements CallServer.Host {
     private String voiceName() { return prefs.getString(K_VOICE, ""); }
     private int rate() { return prefs.getInt(K_RATE, 95); }
     private int pitch() { return prefs.getInt(K_PITCH, 100); }
+    /** 화면 배치 JSON (없으면 null → 화면은 기본 배치) */
+    private Object layoutJson() {
+        String s = prefs.getString(K_LAYOUT, "");
+        if (s.isEmpty()) return JSONObject.NULL;
+        try { return new JSONObject(s); } catch (Exception ex) { return JSONObject.NULL; }
+    }
+
+    /** 화면 배치 값 검사: JSON 이고 구역 위치·크기가 0~100% 안인지 */
+    private static boolean isLayoutJson(String v) {
+        try {
+            JSONObject o = new JSONObject(v);
+            for (String k : new String[]{"l", "p"}) {
+                if (!o.has(k)) continue;
+                JSONObject t = o.getJSONObject(k);
+                for (String s : new String[]{"left", "cur", "hist", "wait"}) {
+                    if (!t.has(s)) continue;
+                    JSONObject b = t.getJSONObject(s);
+                    double x = b.getDouble("x"), y = b.getDouble("y"), w = b.getDouble("w"), h = b.getDouble("h");
+                    if (x < 0 || y < 0 || w <= 0 || h <= 0 || x + w > 100.5 || y + h > 100.5) return false;
+                }
+            }
+            return true;
+        } catch (Exception ex) {
+            return false;
+        }
+    }
+
     private String openTime() { return prefs.getString(K_OPEN, "09:00"); }
     private String closeTime() { return prefs.getString(K_CLOSE, "22:00"); }
     private String closeMsg() { return prefs.getString(K_CLOSE_MSG, DEF_CLOSE_MSG); }
@@ -348,6 +377,7 @@ public class HostService extends Service implements CallServer.Host {
         o.put("kioskPort", PrintReceiver.PORT);
         o.put("relay", prefs.getString(K_RELAY, ""));
         o.put("orderLabel", prefs.getString(K_ORDER_LABEL, "주문번호"));
+        o.put("layout", layoutJson());
         JSONArray log = new JSONArray();
         synchronized (kioskLog) { for (JSONObject j : kioskLog) log.put(j); }
         o.put("kioskLog", log);
@@ -404,6 +434,11 @@ public class HostService extends Service implements CallServer.Host {
         if (q.containsKey("closeMsg")) {
             String m = q.get("closeMsg").trim();
             e.putString(K_CLOSE_MSG, m.isEmpty() ? DEF_CLOSE_MSG : (m.length() > 150 ? m.substring(0, 150) : m));
+        }
+        if (q.containsKey("layout")) { // 화면 배치: 비우면 기본 배치로 되돌림
+            String lv = q.get("layout").trim();
+            if (lv.isEmpty()) e.remove(K_LAYOUT);
+            else if (lv.length() <= 4000 && isLayoutJson(lv)) e.putString(K_LAYOUT, lv);
         }
         if (q.containsKey("closeOn")) {
             e.putBoolean(K_CLOSE_ON, "1".equals(q.get("closeOn")) || "true".equals(q.get("closeOn")));

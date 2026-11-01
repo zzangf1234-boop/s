@@ -28,6 +28,15 @@ details label.ck{display:flex;align-items:center;color:#f2f2f2;margin:6px 0 12px
 details button{font-size:16px;padding:12px;width:100%;background:#33404d;margin-top:4px}
 details button.sm{font-size:14px;padding:8px}
 .two{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+#laycanvas{position:relative;background:#000;border-radius:10px;margin:10px auto;width:100%;touch-action:none;user-select:none}
+#laycanvas.p{width:56%}
+.lb{position:absolute;background:#33404d;border:2px solid #ffcc33;border-radius:8px;color:#fff;font-size:12px;display:flex;align-items:flex-start;justify-content:center;cursor:move;overflow:hidden;box-sizing:border-box}
+.lb.off{opacity:.35;border-style:dashed;border-color:#9aa3ad;pointer-events:none}
+.lb span{margin-top:3px;padding:0 3px;text-align:center;line-height:1.2;pointer-events:none}
+.lb i{position:absolute;right:0;bottom:0;width:20px;height:20px;background:#ffcc33;border-radius:6px 0 6px 0;cursor:nwse-resize}
+#laylist label{display:flex;align-items:center;gap:6px;font-size:14px;margin:10px 0;color:#f2f2f2}
+#laylist label input{width:auto;margin:0;transform:scale(1.2)}
+#laylist select{width:auto;margin:0 0 0 6px;padding:4px 6px}
 .thumbs{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin:10px 0}
 .thumb{position:relative;aspect-ratio:16/9;background:#000;border-radius:8px;overflow:hidden}
 .thumb img,.thumb video{width:100%;height:100%;object-fit:cover;display:block}
@@ -110,6 +119,17 @@ details .kset.on{background:#ff8a00}
 <button id="closeNowBtn" onclick="toggleClosed()">지금 마감 표시</button>
 </details>
 
+<details id="layoutbox"><summary>화면 배치 (TV·PC 화면 구역)</summary>
+<p class="note">구역을 끌어서 옮기고, 노란 모서리를 끌어서 크기를 바꿉니다. 가로 화면과 세로 화면은 따로 저장됩니다.</p>
+<div class="two"><button class="sm" id="lay_l" onclick="setLayTab('l')">가로 화면</button><button class="sm" id="lay_p" onclick="setLayTab('p')">세로 화면</button></div>
+<div id="laycanvas"></div>
+<div id="laylist"></div>
+<div class="two"><button class="sm" onclick="layPreset('basic')">기본형</button><button class="sm" onclick="layPreset('flip')">좌우 반전형</button></div>
+<div class="two"><button class="sm" onclick="layPreset('big')">번호 크게형</button><button class="sm" onclick="layReset()">처음 상태로</button></div>
+<p class="note">키오스크 연동을 쓰면 '조리중' 칸을 켜세요. 저장하면 TV·PC 화면에 바로 반영됩니다.</p>
+<button onclick="saveLayout()">저장</button>
+</details>
+
 <details id="keybox"><summary>키 설정 (키패드·키보드)</summary>
 <p class="note">[키 지정]을 누른 뒤 키보드·키패드에서 원하는 키를 누르세요. 숫자 키는 항상 번호 입력입니다. 호출기 앱과 같은 설정을 사용합니다.</p>
 <div id="keyrows"></div>
@@ -163,6 +183,8 @@ function render(s){
  $('cur').textContent=s.current||'-';
  $('hist').textContent=(s.history||[]).slice(0,4).join(' · ');
  renderWait(s);
+ if(!layBound&&s.layout!==undefined){layBound=true;layInit()}
+ if(!layLoaded&&s.layout!==undefined){LAY.l=(s.layout&&s.layout.l)||layFrom('l','basic');LAY.p=(s.layout&&s.layout.p)||layFrom('p','basic');layLoaded=true;layRender()}
  if(s.authed===false&&!asking)authBar('🔐 이 기기는 아직 호출 권한이 없습니다. 호출기 폰에서 허용해야 번호 호출·설정을 할 수 있습니다.',true);
  if(s.authed)$('authbar').classList.remove('show');
  $('closedNow').textContent=s.closed?'🌙 마감 표시 중':'영업 중';$('closeNowBtn').textContent=s.closed?'마감 표시 끄기':'지금 마감 표시';
@@ -232,6 +254,49 @@ async function uploadChime(f){if(!f)return;if(f.size>5*1048576){msg('알림음 �
 // ── 영업 시간 · 마감 ──
 function saveClosing(){api('/config?closeOn='+($('closeOn').checked?1:0)+'&'+['open','close','closeMsg'].map(q).join('&')).then(okMsg('영업 시간 저장됨'))}
 function toggleClosed(){api('/closing?on='+(S.closed?0:1)).then(function(s){if(s&&s.ok)msg(s.closed?'🌙 마감을 안내했습니다':'마감 표시를 껐습니다')})}
+
+// ── 화면 배치: 구역을 끌어서 옮기고(노란 모서리로 크기 조절) 저장 → TV·PC 화면에 반영 ──
+var LAY={l:null,p:null},layTab='l',layLoaded=false,layBound=false,layDrag=null;
+var LAY_NAMES={left:'이미지·동영상',cur:'현재 호출',hist:'최근 호출',wait:'조리중'};
+var LAY_PRESETS={
+ l:{basic:{left:[0,0,84,100],cur:[84,0,16,50],hist:[84,50,16,50]},
+    flip:{left:[16,0,84,100],cur:[0,0,16,50],hist:[0,50,16,50]},
+    big:{left:[0,0,70,100],cur:[70,0,30,45,1.5],hist:[70,45,30,55,1.25]}},
+ p:{basic:{left:[0,0,100,64],cur:[0,64,100,14],hist:[0,78,100,22]},
+    flip:{left:[0,36,100,64],cur:[0,0,100,14],hist:[0,14,100,22]},
+    big:{left:[0,0,100,70],cur:[0,70,100,12,1.5],hist:[0,82,100,18,1.25]}}};
+function layFrom(t,name){var P=LAY_PRESETS[t][name],o={};
+ for(var k in P){var a=P[k];o[k]={x:a[0],y:a[1],w:a[2],h:a[3],on:true,s:a[4]||1}}
+ o.wait={x:o.hist.x,y:o.hist.y,w:o.hist.w,h:o.hist.h,on:false,s:1};return o}
+function layPaint(k){var d=$('laycanvas').querySelector('.lb[data-k="'+k+'"]');if(!d)return;var b=LAY[layTab][k];
+ d.style.left=b.x+'%';d.style.top=b.y+'%';d.style.width=b.w+'%';d.style.height=b.h+'%';d.classList.toggle('off',!b.on)}
+function layList(){var L=LAY[layTab],h='';
+ for(var k in LAY_NAMES){var b=L[k];
+  h+='<label><input type="checkbox" data-on="'+k+'"'+(b.on?' checked':'')+'> '+LAY_NAMES[k]+' 보이기 · 글자 <select data-sc="'+k+'">'+
+  [[0.8,'작게'],[1,'보통'],[1.25,'크게'],[1.5,'아주 크게']].map(function(o){return '<option value="'+o[0]+'"'+(Math.abs((b.s||1)-o[0])<0.01?' selected':'')+'>'+o[1]+'</option>'}).join('')+'</select></label>'}
+ $('laylist').innerHTML=h}
+function layRender(){var c=$('laycanvas');c.className=layTab==='p'?'p':'';c.style.aspectRatio=layTab==='p'?'9 / 16':'16 / 9';
+ c.innerHTML='';
+ for(var k in LAY_NAMES){var d=document.createElement('div');d.className='lb';d.dataset.k=k;d.innerHTML='<span>'+LAY_NAMES[k]+'</span><i></i>';c.appendChild(d);layPaint(k)}
+ $('lay_l').style.opacity=layTab==='l'?1:.5;$('lay_p').style.opacity=layTab==='p'?1:.5;
+ layList()}
+function setLayTab(t){layTab=t;layRender()}
+function layPreset(name){LAY[layTab]=layFrom(layTab,name);layRender()}
+function layReset(){api('/config?layout=').then(function(s){if(s&&s.ok!==false){layLoaded=false;msg('기본 배치로 되돌렸습니다')}})}
+function saveLayout(){api('/config?layout='+encodeURIComponent(JSON.stringify({l:LAY.l,p:LAY.p}))).then(okMsg('화면 배치 저장됨'))}
+function layInit(){var c=$('laycanvas');
+ c.addEventListener('pointerdown',function(e){var d=e.target.closest?e.target.closest('.lb'):null;if(!d)return;var b=LAY[layTab][d.dataset.k],r=c.getBoundingClientRect();
+  layDrag={k:d.dataset.k,rs:e.target.tagName==='I',sx:e.clientX,sy:e.clientY,b0:{x:b.x,y:b.y,w:b.w,h:b.h},W:r.width,H:r.height};
+  c.appendChild(d); // 누른 구역을 맨 위로 올려서 겹쳐 있어도 잡히게
+  try{d.setPointerCapture(e.pointerId)}catch(x){}e.preventDefault()});
+ c.addEventListener('pointermove',function(e){if(!layDrag)return;var g=layDrag,b=LAY[layTab][g.k],dx=(e.clientX-g.sx)/g.W*100,dy=(e.clientY-g.sy)/g.H*100;
+  if(g.rs){b.w=Math.round(Math.max(5,Math.min(100-b.x,g.b0.w+dx)));b.h=Math.round(Math.max(5,Math.min(100-b.y,g.b0.h+dy)))}
+  else{b.x=Math.round(Math.max(0,Math.min(100-b.w,g.b0.x+dx)));b.y=Math.round(Math.max(0,Math.min(100-b.h,g.b0.y+dy)))}
+  layPaint(g.k)});
+ var end=function(){layDrag=null};c.addEventListener('pointerup',end);c.addEventListener('pointercancel',end);
+ $('laylist').addEventListener('change',function(e){var t=e.target,L=LAY[layTab];
+  if(t.dataset.on){L[t.dataset.on].on=t.checked;layPaint(t.dataset.on)}
+  if(t.dataset.sc){L[t.dataset.sc].s=+t.value}})}
 
 // ── 키 설정 (호출기 앱과 공유, 키 이름은 KeyboardEvent.code) ──
 var ACTS=[['call','호출'],['next','다음 번호 입력'],['recall','재호출'],['blank','화면 비우기'],['range','연속 호출 ~ (예: 1~4)'],['clear','입력 전체 삭제'],['back','한 칸 지우기']];

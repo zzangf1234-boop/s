@@ -77,6 +77,16 @@ final class DisplayPage {
         " #start b{font-size:3.6vh}\n" +
         " #start span{font-size:2vh}\n" +
         "}\n" +
+        "/* ── 화면 배치 (사용자 설정): 구역을 위치·크기로 자유롭게 배치 (설정이 없으면 기본 배치 그대로) ── */\n" +
+        "body.free .main{position:absolute;top:1vh;left:1vh;right:1vh;bottom:1vh;display:block}\n" +
+        "body.free .left{position:absolute;margin:0;flex:none}\n" +
+        "body.free .right{position:absolute;top:0;left:0;right:0;bottom:0;display:block;background:none;padding:0;border-radius:0}\n" +
+        "body.free .sec{position:absolute;margin:0;padding:1.5vh 1vh;background:var(--panel);border-radius:1.2vh;overflow:hidden;border:0;display:flex;flex-direction:column;align-items:center;min-height:0}\n" +
+        "body.free #secHist{flex:1;margin:0;padding:1.5vh 1vh;border-top:0}\n" +
+        "body.free #secWait{display:flex}\n" +
+        "body.free #secHist,body.free #secWait{border-top:0}\n" +
+        "body.free #dot{z-index:9}\n" +
+        ".off{display:none!important}\n" +
         "/* ── 호출 팝업 ── */\n" +
         "#ov{position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,.7);display:none;align-items:center;justify-content:center;opacity:0;transition:opacity .3s;z-index:20}\n" +
         "#ov.show{display:flex}\n" +
@@ -154,19 +164,31 @@ final class DisplayPage {
         " loadBuf('/chime?v='+encodeURIComponent(key)).then(function(b){chimeBuf=b;chimeKey=key;playBuf(b)}).catch(synthChime)}\n" +
         "function stopVoice(){playId++;try{if(voiceSrc){voiceSrc.onended=null;voiceSrc.stop()}}catch(e){}voiceSrc=null;if('speechSynthesis' in window)speechSynthesis.cancel()}\n" +
         "function playVoice(url,text,rep){if(rep<=0)return;var id=++playId;\n" +
-        " if(!S.voice||!ac||ac.state!=='running'){speak(text,rep);return}\n" +
+        " if(!S.voice||!ac||ac.state!=='running'){speak(text,rep);return}\n";
+    private static final String P1 =
         " loadBuf(url).then(function(buf){if(id!==playId)return;(function play(k){if(k<=0||id!==playId)return;voiceSrc=playBuf(buf,function(){if(id===playId)speakT=setTimeout(function(){play(k-1)},800)})})(rep)}).catch(function(){if(id===playId)speak(text,rep)})}\n" +
         "function pickVoice(){if(!('speechSynthesis' in window))return;var v=speechSynthesis.getVoices().filter(function(x){return /^ko/i.test(x.lang)});voice=v.filter(function(x){return /Natural|Online/i.test(x.name)})[0]||v[0]||null}\n" +
-        "if('speechSynthesis' in window){pickVoice();speechSynthesis.onvoiceschanged=pickVoice}\n";
-    private static final String P1 =
+        "if('speechSynthesis' in window){pickVoice();speechSynthesis.onvoiceschanged=pickVoice}\n" +
         "function speak(text,rep){if(!('speechSynthesis' in window)||rep<=0)return;speechSynthesis.cancel();(function say(k){if(k<=0)return;var u=new SpeechSynthesisUtterance(text);u.lang='ko-KR';if(voice)u.voice=voice;u.rate=.95;u.onend=function(){speakT=setTimeout(function(){say(k-1)},800)};speechSynthesis.speak(u)})(rep)}\n" +
         "// ── 글자 크기 맞춤 ──\n" +
-        "function fit(el,vh){var s=vh;el.style.fontSize=s+'vh';while(s>2&&el.scrollWidth>el.clientWidth){s*=.92;el.style.fontSize=s+'vh'}}\n" +
+        "function fit(el,vh){var sec=el.closest?el.closest('.sec'):null,k=sec&&sec.dataset.sc?+sec.dataset.sc:1;var s=vh*k;el.style.fontSize=s+'vh';while(s>2&&el.scrollWidth>el.clientWidth){s*=.92;el.style.fontSize=s+'vh'}}\n" +
+        "// ── 화면 배치 적용: 구역마다 위치(%)·크기(%)·보이기·글자 배율 ──\n" +
+        "var LAY_IDS={left:'left',cur:'secCur',hist:'secHist',wait:'secWait'};\n" +
+        "function applyLayout(L){\n" +
+        " var cfg=L&&(portrait()?L.p:L.l);\n" +
+        " document.body.classList.toggle('free',!!cfg);\n" +
+        " for(var k in LAY_IDS){var el=$(LAY_IDS[k]),c=cfg&&cfg[k];\n" +
+        "  if(!cfg){el.removeAttribute('style');el.classList.remove('off');el.removeAttribute('data-sc');continue}\n" +
+        "  c=c||{x:0,y:0,w:10,h:10,on:false,s:1};\n" +
+        "  el.style.left=c.x+'%';el.style.top=c.y+'%';el.style.width=c.w+'%';el.style.height=c.h+'%';el.style.zIndex=c.z||1;\n" +
+        "  el.classList.toggle('off',!c.on);el.dataset.sc=c.s||1}\n" +
+        "}\n" +
         "function portrait(){return window.innerHeight>window.innerWidth}\n" +
         "// ── 상태 반영 ──\n" +
         "function render(s){\n" +
         " document.body.classList.toggle('calm',s.theme==='calm');\n" +
         " var kiosk=!!s.kioskOn;document.body.classList.toggle('kiosk',kiosk);\n" +
+        " applyLayout(s.layout);\n" +
         " $('cur').textContent=s.current||'—';fit($('cur'),portrait()?(kiosk?7:10):13);\n" +
         " $('histLbl').textContent=kiosk?'현재 호출':'최근 호출';\n" +
         " var h=s.history||[],d=$('hist').children;\n" +
@@ -268,5 +290,5 @@ final class DisplayPage {
         "})();\n" +
         "</script></body></html>\n";
 
-    static final String HTML = new StringBuilder(20611).append(P0).append(P1).toString();
+    static final String HTML = new StringBuilder(22057).append(P0).append(P1).toString();
 }
