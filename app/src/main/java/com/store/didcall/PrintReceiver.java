@@ -117,11 +117,13 @@ final class PrintReceiver {
                 }
                 if (r < 0) break;
                 idleSince = System.currentTimeMillis();
-                // 자르기 명령(ESC i, ESC m, GS V)이 오면 거기서 한 장을 끊음 → 붙어 온 다음 주문을 놓치지 않게
+                // 자르기 명령(ESC i, ESC m, GS V)·폼피드(0x0C)가 오면 거기서 한 장을 끊음 → 붙어 온 다음 주문을 놓치지 않게
                 int start = 0;
                 for (int i = 0; i < r; i++) {
                     int c = buf[i] & 0xFF;
-                    boolean cut = (prev == 0x1B && (c == 'i' || c == 'm')) || (prev == 0x1D && c == 'V');
+                    boolean cut = c == 0x0C
+                            || (prev == 0x1B && (c == 'i' || c == 'm'))
+                            || (prev == 0x1D && c == 'V');
                     prev = c;
                     if (cut) {
                         job.write(buf, start, i + 1 - start);

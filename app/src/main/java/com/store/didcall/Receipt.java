@@ -22,6 +22,12 @@ final class Receipt {
         this.text = text; this.number = number; this.reprint = reprint; this.items = items;
     }
 
+    final List<String> numbers; // 한 장에 여러 주문이 붙어 올 때 모든 주문번호 (순서대로)
+
+    private Receipt(String text, String number, boolean reprint, List<String> items, List<String> numbers) {
+        this.text = text; this.number = number; this.reprint = reprint; this.items = items; this.numbers = numbers;
+    }
+
     private static final Charset CP949 = koreanCharset();
 
     /** 한국어 프린터 글자 코드 (CP949, 없으면 EUC-KR) */
@@ -45,11 +51,14 @@ final class Receipt {
         re.append("\\s*[:：]*\\s*(\\d{1,6})");
         Matcher m = Pattern.compile(re.toString()).matcher(text);
         String number = null;
-        if (m.find()) {
-            number = m.group(1).replaceFirst("^0+(?=\\d)", ""); // 앞자리 0 제거 (007 → 7)
+        List<String> all = new ArrayList<>();
+        while (m.find()) { // 연속 주문이 한 장에 붙어 오면 번호가 여러 개 — 전부 수집
+            String g = m.group(1).replaceFirst("^0+(?=\\d)", ""); // 앞자리 0 제거 (007 → 7)
+            all.add(g);
+            if (number == null) number = g;
         }
         boolean reprint = Pattern.compile("재\\s*발\\s*행").matcher(text).find();
-        return new Receipt(text, number, reprint, items(text));
+        return new Receipt(text, number, reprint, items(text), all);
     }
 
     /** 메뉴 줄: 구분선 사이의 본문 중 옵션(-)·주문번호·시간·PosNo 줄을 뺀 것 */
@@ -75,6 +84,12 @@ final class Receipt {
         String first = items.get(0);
         if (first.length() > 18) first = first.substring(0, 18) + "…";
         return items.size() == 1 ? first : first + " 외 " + (items.size() - 1);
+    }
+
+    /** 이 장에 붙어 온 모든 주문번호 (없으면 빈 목록). numbers 가 비어 있으면 number 로라도 */
+    List<String> allNumbers() {
+        if (!numbers.isEmpty()) return numbers;
+        return number == null ? new ArrayList<>() : java.util.Collections.singletonList(number);
     }
 
     /**
@@ -189,7 +204,8 @@ final class Receipt {
         String text = new String(strip(raw, notes), CP949);
         Receipt r = parse(raw, label);
         StringBuilder o = new StringBuilder();
-        o.append("크기 ").append(raw.length).append("바이트 · 주문번호 ").append(r.number == null ? "못 찾음" : r.number)
+        o.append("크기 ").append(raw.length).append("바이트 · 주문번호 ")
+                .append(r.allNumbers().isEmpty() ? "못 찾음" : android.text.TextUtils.join(", ", r.allNumbers()))
                 .append(r.reprint ? " · 재발행" : "").append("\n\n[찾은 그림·명령]\n")
                 .append(notes.length() == 0 ? "없음\n" : notes.toString())
                 .append("\n[읽은 글자]\n").append(text.trim()).append("\n\n[원본 앞부분 16진수]\n");
