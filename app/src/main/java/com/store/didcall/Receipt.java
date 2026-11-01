@@ -17,16 +17,7 @@ final class Receipt {
     final String number;    // 주문번호 (없으면 null)
     final boolean reprint;  // 재발행 주문서
     final List<String> items; // 메뉴 이름 (옵션 줄 제외)
-
-    private Receipt(String text, String number, boolean reprint, List<String> items) {
-        this.text = text; this.number = number; this.reprint = reprint; this.items = items;
-    }
-
     final List<String> numbers; // 한 장에 여러 주문이 붙어 올 때 모든 주문번호 (순서대로)
-
-    private Receipt(String text, String number, boolean reprint, List<String> items) {
-        this(text, number, reprint, items, new ArrayList<String>());
-    }
 
     private Receipt(String text, String number, boolean reprint, List<String> items, List<String> numbers) {
         this.text = text; this.number = number; this.reprint = reprint; this.items = items; this.numbers = numbers;
