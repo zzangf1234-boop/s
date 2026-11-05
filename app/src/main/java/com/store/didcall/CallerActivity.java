@@ -105,6 +105,10 @@ public class CallerActivity extends Activity implements VoiceRecorder.Host {
                 && checkSelfPermission("android.permission.POST_NOTIFICATIONS") != PackageManager.PERMISSION_GRANTED) {
             requestPermissions(new String[]{"android.permission.POST_NOTIFICATIONS"}, 1);
         }
+        // 시작 시 업데이트 자동 확인 — 새 버전이 있고 건너뛰지 않았을 때만 알림
+        if (savedInstanceState == null && !getIntent().getBooleanExtra(MainActivity.EXTRA_TUTORIAL, false)) {
+            Updater.autoCheck(this);
+        }
     }
 
     /**
@@ -681,6 +685,7 @@ public class CallerActivity extends Activity implements VoiceRecorder.Host {
                 "🌐 이미지·동영상 관리 · 기타 설정 (브라우저)",
                 "📺 TV·PC 화면 연결 방법",
                 "⬆ 업데이트 확인",
+                "↩ 이전 버전으로 되돌리기",
                 "번호 초기화 (다음 번호 = 1)",
                 "꺼짐 방지 (배터리 최적화 제외)",
                 "역할 다시 선택",
@@ -708,26 +713,35 @@ public class CallerActivity extends Activity implements VoiceRecorder.Host {
                         case 12:
                             msg("업데이트 확인 중…");
                             io.execute(() -> {
-                                final String r = Updater.check(CallerActivity.this);
-                                ui.post(() -> Updater.showResult(CallerActivity.this, r));
+                                StringBuilder reason = new StringBuilder();
+                                final Updater.Remote r = Updater.check(CallerActivity.this, reason);
+                                ui.post(() -> Updater.showResult(CallerActivity.this, r, false));
                             });
                             break;
                         case 13:
+                            msg("이전 버전 확인 중…");
+                            io.execute(() -> {
+                                final Updater.Remote r = Updater.check(CallerActivity.this, new StringBuilder());
+                                ui.post(() -> Updater.rollback(CallerActivity.this, r));
+                            });
+                            break;
+                        case 14:
                             lastSent = 0;
                             prefs.edit().putInt(K_LAST, 0).apply();
                             msg("번호를 초기화했습니다");
                             break;
-                        case 14: askBatteryExemption(); break;
-                        case 15:
+                        case 15: askBatteryExemption(); break;
+                        case 16:
                             HostService.stop(this);
                             prefs.edit().remove(MainActivity.KEY_MODE).apply();
                             prefs.edit().remove(MainActivity.KEY_TUTORIAL_DONE).apply();
                             startActivity(new Intent(this, MainActivity.class).putExtra(MainActivity.EXTRA_CHOOSE, true));
                             finish();
                             break;
-                        default:
+                        case 17:
                             HostService.stop(this);
                             finish();
+                            break;
                     }
                 })
                 .show();
