@@ -81,10 +81,11 @@ final class Updater {
                 JSONObject o = new JSONObject(Http.get(base + "/api/version?name=DID-Call-v"
                         + current(c) + ".apk&pin=" + PIN, 4000, 6000));
                 Remote r = new Remote();
-                r.version = o.optString("version", "");
+                // 서버는 버전을 "v1.10.1" 처럼 v 를 붙여 돌려주므로 떼고 비교
+                r.version = o.optString("version", "").replaceFirst("^v", "");
                 r.url = o.optString("url", "");
                 if (!o.optString("prevVersion", "").isEmpty()) {
-                    r.prevVersion = o.optString("prevVersion");
+                    r.prevVersion = o.optString("prevVersion").replaceFirst("^v", "");
                     r.prevUrl = o.optString("prevUrl", "");
                 }
                 r.fromServer = true;
