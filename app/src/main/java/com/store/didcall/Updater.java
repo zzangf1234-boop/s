@@ -78,8 +78,8 @@ final class Updater {
         // ① 폰 업데이트 서버 (이름은 현재 버전으로 물어보면 서버가 항상 최신 정보를 돌려줌)
         for (String base : SERVERS) {
             try {
-                JSONObject o = new JSONObject(Http.get(base + "/api/version?name=DID-Call-v"
-                        + current(c) + ".apk&pin=" + PIN, 4000, 6000));
+                // 파일명은 고정(DID-Call.apk) — 서버가 같은 이름 재업로드를 새 버전으로 인식해 이전 버전을 자동 보관
+                JSONObject o = new JSONObject(Http.get(base + "/api/version?name=DID-Call.apk&pin=" + PIN, 4000, 6000));
                 Remote r = new Remote();
                 // 서버는 버전을 "v1.10.1" 처럼 v 를 붙여 돌려주므로 떼고 비교
                 r.version = o.optString("version", "").replaceFirst("^v", "");
