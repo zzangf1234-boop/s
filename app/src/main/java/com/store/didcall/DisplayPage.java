@@ -101,6 +101,8 @@ final class DisplayPage {
         "#closed .ic{font-size:10vh;margin-bottom:3vh}\n" +
         "#closed .msg{font-size:6vh;font-weight:800;line-height:1.4;color:#fff;white-space:pre-line;max-width:90vw}\n" +
         "#closed .sub{font-size:3vh;color:var(--label);margin-top:3vh}\n" +
+        "#black{position:fixed;top:0;left:0;right:0;bottom:0;z-index:30;background:#000;display:none}\n" +
+        "#black.show{display:block}\n" +
         "/* ── 시작 / 메뉴 ── */\n" +
         "#start{position:fixed;top:0;left:0;right:0;bottom:0;z-index:40;background:rgba(17,20,24,.94);display:flex;flex-direction:column;align-items:center;justify-content:center;cursor:pointer;text-align:center}\n" +
         "#start[hidden]{display:none}\n" +
@@ -130,6 +132,7 @@ final class DisplayPage {
         " </div>\n" +
         "</div>\n" +
         "<div id=\"closed\"><div class=\"ic\">🌙</div><div class=\"msg\" id=\"closedMsg\"></div><div class=\"sub\" id=\"closedSub\"></div></div>\n" +
+        "<div id=\"black\"></div>\n" +
         "<div id=\"ov\"><div id=\"card\"><div id=\"pl\">호출 번호</div><div id=\"pn\"></div><div id=\"ps\"></div></div></div>\n" +
         "<div id=\"corner\"></div>\n" +
         "<div id=\"menu\"><div class=\"box\"><div class=\"t\">호출 화면 메뉴</div>\n" +
@@ -149,7 +152,7 @@ final class DisplayPage {
         " document.body.appendChild(f);\n" +
         " window.next=function(){try{f.contentWindow.next()}catch(e){}};\n" +
         "} else (function(){\n" +
-        "var S={},seq=null,closeSeq=null,items=[],mediaVer=null,idx=-1,front='ia',slideT=0,hideT=0,flashT=0,ac=null,voice=null,fails=0,speakT=0;\n" +
+        "var S={},seq=null,closeSeq=null,items=[],mediaVer=null,idx=-1,front='ia',slideT=0,hideT=0,flashT=0,ac=null,voice=null,fails=0,speakT=0,blackT=0;\n" +
         "function $(i){return document.getElementById(i)}\n" +
         "// ── 소리: 호출기 폰이 만든 알림음·음성 파일을 그대로 재생 (TV·PC 모두 같은 소리) ──\n" +
         "function initAudio(){try{ac=ac||new (window.AudioContext||window.webkitAudioContext)();if(ac.state!=='running')ac.resume()}catch(e){}}\n" +
@@ -160,9 +163,9 @@ final class DisplayPage {
         "function chime(){if(!ac||ac.state!=='running')return;var key=(S.chime||'')+'/'+(S.chimeVer||0);if(chimeBuf&&key===chimeKey){playBuf(chimeBuf);return}\n" +
         " loadBuf('/chime?v='+encodeURIComponent(key)).then(function(b){chimeBuf=b;chimeKey=key;playBuf(b)}).catch(synthChime)}\n" +
         "function stopVoice(){playId++;try{if(voiceSrc){voiceSrc.onended=null;voiceSrc.stop()}}catch(e){}voiceSrc=null;if('speechSynthesis' in window)speechSynthesis.cancel()}\n" +
-        "function playVoice(url,text,rep){if(rep<=0)return;var id=++playId;\n" +
-        " if(!S.voice||!ac||ac.state!=='running'){speak(text,rep);return}\n";
+        "function playVoice(url,text,rep){if(rep<=0)return;var id=++playId;\n";
     private static final String P1 =
+        " if(!S.voice||!ac||ac.state!=='running'){speak(text,rep);return}\n" +
         " loadBuf(url).then(function(buf){if(id!==playId)return;(function play(k){if(k<=0||id!==playId)return;voiceSrc=playBuf(buf,function(){if(id===playId)speakT=setTimeout(function(){play(k-1)},800)})})(rep)}).catch(function(){if(id===playId)speak(text,rep)})}\n" +
         "function pickVoice(){if(!('speechSynthesis' in window))return;var v=speechSynthesis.getVoices().filter(function(x){return /^ko/i.test(x.lang)});voice=v.filter(function(x){return /Natural|Online/i.test(x.name)})[0]||v[0]||null}\n" +
         "if('speechSynthesis' in window){pickVoice();speechSynthesis.onvoiceschanged=pickVoice}\n" +
@@ -203,6 +206,10 @@ final class DisplayPage {
         " $('closedMsg').textContent=s.closeMsg||'';\n" +
         " $('closedSub').textContent=s.closeOn&&s.open?('영업 시간  '+s.open+' ~ '+s.close):'';\n" +
         " $('closed').classList.toggle('show',!!s.closed);\n" +
+        " // 마감 안내 후 blackMs(기본 20분)가 지나면 TV 화면을 검정으로 (영업 시작에 자동 해제)\n" +
+        " var bm=s.blackMs||0;\n" +
+        " if(s.closed&&bm>0){if(blackT===0){blackT=setTimeout(function(){document.getElementById('black').classList.add('show')},bm)}}\n" +
+        " else{if(blackT){clearTimeout(blackT);blackT=0}document.getElementById('black').classList.remove('show')}\n" +
         " $('vv').muted=!s.videoSound;\n" +
         "}\n" +
         "// 조리중: 들어온 순서대로, 넘치면 \"+N\"\n" +
@@ -292,5 +299,5 @@ final class DisplayPage {
         "})();\n" +
         "</script></body></html>\n";
 
-    static final String HTML = new StringBuilder(22333).append(P0).append(P1).toString();
+    static final String HTML = new StringBuilder(22799).append(P0).append(P1).toString();
 }

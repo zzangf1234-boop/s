@@ -403,6 +403,7 @@ public class HostService extends Service implements CallServer.Host {
         o.put("closeOn", closeOn());
         o.put("closed", prefs.getBoolean(K_CLOSED, false));
         o.put("closeSeq", prefs.getLong(K_CLOSE_SEQ, 0));
+        o.put("blackMs", 20 * 60_000L); // 마감 안내 후 이 시간이 지나면 TV 화면을 검정으로 (고정값)
         o.put("kioskOn", prefs.getBoolean(K_KIOSK_ON, false));
         o.put("kioskPort", PrintReceiver.PORT);
         o.put("relay", prefs.getString(K_RELAY, ""));

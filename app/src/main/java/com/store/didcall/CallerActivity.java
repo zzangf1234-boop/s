@@ -68,6 +68,8 @@ public class CallerActivity extends Activity implements VoiceRecorder.Host {
     private final ExecutorService io = Executors.newSingleThreadExecutor();
     private final ExecutorService up = Executors.newSingleThreadExecutor();
     private SharedPreferences prefs;
+    /** 블루투스 키보드가 폰 절전으로 끊기지 않게 유지하는 CPU 락 (호출기 화면이 켜져 있는 동안) */
+    private android.os.PowerManager.WakeLock btWake;
 
     private TextView statusView, addrView, inputView, msgView;
     private LinearLayout waitBar, waitBox;
@@ -129,6 +131,7 @@ public class CallerActivity extends Activity implements VoiceRecorder.Host {
     @Override
     protected void onResume() {
         super.onResume();
+        holdBtAwake();
         if (!HostService.running) HostService.start(this);
         ui.removeCallbacks(poller);
         ui.postDelayed(poller, 600);
@@ -138,6 +141,24 @@ public class CallerActivity extends Activity implements VoiceRecorder.Host {
     protected void onPause() {
         super.onPause();
         ui.removeCallbacks(poller);
+        releaseBtAwake();
+    }
+
+    /** 블루투스 키보드가 절전으로 끊기지 않게 CPU 락 유지 — 화면이 켜져 있는 동안에만 */
+    private void holdBtAwake() {
+        try {
+            if (btWake == null) {
+                android.os.PowerManager pm = (android.os.PowerManager) getSystemService(POWER_SERVICE);
+                btWake = pm.newWakeLock(android.os.PowerManager.PARTIAL_WAKE_LOCK, "didcall:btkey");
+                btWake.setReferenceCounted(false);
+            }
+            btWake.acquire();
+        } catch (Exception ignored) {
+        }
+    }
+
+    private void releaseBtAwake() {
+        try { if (btWake != null && btWake.isHeld()) btWake.release(); } catch (Exception ignored) {}
     }
 
     @Override

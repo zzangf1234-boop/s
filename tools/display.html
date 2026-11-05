@@ -94,6 +94,8 @@ body.free #logoBox{display:flex;position:absolute;align-items:center;justify-con
 #closed .ic{font-size:10vh;margin-bottom:3vh}
 #closed .msg{font-size:6vh;font-weight:800;line-height:1.4;color:#fff;white-space:pre-line;max-width:90vw}
 #closed .sub{font-size:3vh;color:var(--label);margin-top:3vh}
+#black{position:fixed;top:0;left:0;right:0;bottom:0;z-index:30;background:#000;display:none}
+#black.show{display:block}
 /* ── 시작 / 메뉴 ── */
 #start{position:fixed;top:0;left:0;right:0;bottom:0;z-index:40;background:rgba(17,20,24,.94);display:flex;flex-direction:column;align-items:center;justify-content:center;cursor:pointer;text-align:center}
 #start[hidden]{display:none}
@@ -124,6 +126,7 @@ body.free #logoBox{display:flex;position:absolute;align-items:center;justify-con
  </div>
 </div>
 <div id="closed"><div class="ic">🌙</div><div class="msg" id="closedMsg"></div><div class="sub" id="closedSub"></div></div>
+<div id="black"></div>
 <div id="ov"><div id="card"><div id="pl">호출 번호</div><div id="pn"></div><div id="ps"></div></div></div>
 <div id="corner"></div>
 <div id="menu"><div class="box"><div class="t">호출 화면 메뉴</div>
@@ -143,7 +146,7 @@ if(ROT===90||ROT===270){
  document.body.appendChild(f);
  window.next=function(){try{f.contentWindow.next()}catch(e){}};
 } else (function(){
-var S={},seq=null,closeSeq=null,items=[],mediaVer=null,idx=-1,front='ia',slideT=0,hideT=0,flashT=0,ac=null,voice=null,fails=0,speakT=0;
+var S={},seq=null,closeSeq=null,items=[],mediaVer=null,idx=-1,front='ia',slideT=0,hideT=0,flashT=0,ac=null,voice=null,fails=0,speakT=0,blackT=0;
 function $(i){return document.getElementById(i)}
 
 // ── 소리: 호출기 폰이 만든 알림음·음성 파일을 그대로 재생 (TV·PC 모두 같은 소리) ──
@@ -199,6 +202,10 @@ function render(s){
  $('closedMsg').textContent=s.closeMsg||'';
  $('closedSub').textContent=s.closeOn&&s.open?('영업 시간  '+s.open+' ~ '+s.close):'';
  $('closed').classList.toggle('show',!!s.closed);
+ // 마감 안내 후 blackMs(기본 20분)가 지나면 TV 화면을 검정으로 (영업 시작에 자동 해제)
+ var bm=s.blackMs||0;
+ if(s.closed&&bm>0){if(blackT===0){blackT=setTimeout(function(){document.getElementById('black').classList.add('show')},bm)}}
+ else{if(blackT){clearTimeout(blackT);blackT=0}document.getElementById('black').classList.remove('show')}
  $('vv').muted=!s.videoSound;
 }
 // 조리중: 들어온 순서대로, 넘치면 "+N"
