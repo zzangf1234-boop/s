@@ -673,53 +673,32 @@ public class CallerActivity extends Activity implements VoiceRecorder.Host {
     private void showMenu() {
         String[] items = {
                 "📺 Display 설정 (이미지·소리·화면)",
-                "🌙 영업 시간 · 마감 안내",
-                "🧾 키오스크 주문 연동 (조리중)",
-                "⌨ 키 설정 (키패드·키보드)",
-                "🔐 허용된 기기",
-                "🌐 이미지·동영상 관리 · 기타 설정 (브라우저)",
+                "📱 호출기 설정 (주문·키·기기·업데이트)",
                 "📺 TV·PC 화면 연결 방법",
-                "⬆ 업데이트 (확인·중지·롤백)",
                 "번호 초기화 (다음 번호 = 1)",
-                "꺼짐 방지 (배터리 최적화 제외)",
                 "역할 다시 선택",
                 "호출 서버 끄고 종료",
         };
         new AlertDialog.Builder(this, R.style.DidDialog)
+                .setTitle("⚙ 설정")
                 .setItems(items, (d, which) -> {
                     switch (which) {
                         case 0: showDisplaySettings(); break;
-                        case 1: showClosing(); break;
-                        case 2: showKiosk(); break;
-                        case 3: showKeySettings(); break;
-                        case 4: showDevices(); break;
-                        case 5:
-                            try { startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse(BASE + "/"))); }
-                            catch (Exception e) { msg("브라우저를 열 수 없습니다"); }
-                            break;
-                        case 6: showConnectInfo(); break;
-                        case 7:
-                            msg("업데이트 정보 확인 중…");
-                            io.execute(() -> {
-                                StringBuilder reason = new StringBuilder();
-                                final Updater.Remote r = Updater.check(CallerActivity.this, reason);
-                                ui.post(() -> showUpdateDialog(CallerActivity.this, r, reason.toString()));
-                            });
-                            break;
-                        case 8:
+                        case 1: showCallerSettings(); break;
+                        case 2: showConnectInfo(); break;
+                        case 3:
                             lastSent = 0;
                             prefs.edit().putInt(K_LAST, 0).apply();
                             msg("번호를 초기화했습니다");
                             break;
-                        case 9: askBatteryExemption(); break;
-                        case 10:
+                        case 4:
                             HostService.stop(this);
                             prefs.edit().remove(MainActivity.KEY_MODE).apply();
                             prefs.edit().remove(MainActivity.KEY_TUTORIAL_DONE).apply();
                             startActivity(new Intent(this, MainActivity.class).putExtra(MainActivity.EXTRA_CHOOSE, true));
                             finish();
                             break;
-                        case 11:
+                        case 5:
                             HostService.stop(this);
                             finish();
                             break;
@@ -728,7 +707,7 @@ public class CallerActivity extends Activity implements VoiceRecorder.Host {
                 .show();
     }
 
-    /** 📺 Display 설정 — TV 이미지·동영상, 알림음·목소리, 화면 방향을 한 리스트에 모은 하위 메뉴 */
+    /** 📺 Display 설정 — TV 이미지·동영상, 알림음·목소리, 영업시간·마감안내, 화면 방향 */
     private void showDisplaySettings() {
         String[] items = {
                 "🖼 TV 이미지 추가 (갤러리)",
@@ -736,7 +715,9 @@ public class CallerActivity extends Activity implements VoiceRecorder.Host {
                 "🔔 알림음 선택",
                 "🗣 목소리 설정 (목소리·속도·높낮이)",
                 "🎙 내 목소리 녹음",
+                "🌙 영업 시간 · 마감 안내",
                 "↻ 화면 방향 (세로 / 가로)",
+                "↩ 뒤로가기",
         };
         new AlertDialog.Builder(this, R.style.DidDialog)
                 .setTitle("📺 Display 설정")
@@ -748,7 +729,46 @@ public class CallerActivity extends Activity implements VoiceRecorder.Host {
                         case 3: showVoiceSettings(); break;
                         case 4: new VoiceRecorder(this, this).showList(last.optString("tts", HostService.DEF_TTS),
                                 last.optString("closeMsg", HostService.DEF_CLOSE_MSG), "rec".equals(last.optString("voiceMode"))); break;
-                        case 5: chooseOrientation(); break;
+                        case 5: showClosing(); break;
+                        case 6: chooseOrientation(); break;
+                        case 7: showMenu(); break; // 뒤로가기
+                    }
+                })
+                .show();
+    }
+
+    /** 📱 호출기 설정 — 주문연동·키·기기·브라우저 관리·업데이트·꺼짐 방지 */
+    private void showCallerSettings() {
+        String[] items = {
+                "🧾 키오스크 주문 연동 (조리중)",
+                "⌨ 키 설정 (키패드·키보드)",
+                "🔐 허용된 기기",
+                "🌐 이미지·동영상 관리 · 기타 설정 (브라우저)",
+                "⬆ 업데이트 (확인·중지·롤백)",
+                "🔋 꺼짐 방지 (배터리 최적화 제외)",
+                "↩ 뒤로가기",
+        };
+        new AlertDialog.Builder(this, R.style.DidDialog)
+                .setTitle("📱 호출기 설정")
+                .setItems(items, (d, which) -> {
+                    switch (which) {
+                        case 0: showKiosk(); break;
+                        case 1: showKeySettings(); break;
+                        case 2: showDevices(); break;
+                        case 3:
+                            try { startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse(BASE + "/"))); }
+                            catch (Exception e) { msg("브라우저를 열 수 없습니다"); }
+                            break;
+                        case 4:
+                            msg("업데이트 정보 확인 중…");
+                            io.execute(() -> {
+                                StringBuilder reason = new StringBuilder();
+                                final Updater.Remote r = Updater.check(CallerActivity.this, reason);
+                                ui.post(() -> showUpdateDialog(CallerActivity.this, r, reason.toString()));
+                            });
+                            break;
+                        case 5: askBatteryExemption(); break;
+                        case 6: showMenu(); break; // 뒤로가기
                     }
                 })
                 .show();
