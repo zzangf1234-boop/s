@@ -89,18 +89,12 @@ final class ApkStore {
             tmp.delete();
             return "파일을 확인하지 못했습니다";
         }
-        File old = file.isFile() ? new File(file.getParentFile(), "old.apk") : null;
-        if (old != null) { //noinspection ResultOfMethodCallIgnored
+        File old = new File(file.getParentFile(), "old.apk");
+        if (old.isFile()) { //noinspection ResultOfMethodCallIgnored
             old.delete();
         }
         if (!tmp.renameTo(file)) return "저장에 실패했습니다";
         size = file.length();
         return null;
-    }
-
-    /** 오래된 이전 버전 APK 정리 (설치 성공 확인 뒤) */
-    void cleanup() {
-        //noinspection ResultOfMethodCallIgnored
-        new File(file.getParentFile(), "old.apk").delete();
     }
 }

@@ -277,9 +277,4 @@ final class VoiceRecorder {
         }
     }
 
-    @SuppressWarnings("unused")
-    private static TextView big(TextView t, float sp) {
-        t.setTextSize(TypedValue.COMPLEX_UNIT_SP, sp);
-        return t;
-    }
 }

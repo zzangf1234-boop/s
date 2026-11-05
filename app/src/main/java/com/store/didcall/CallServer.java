@@ -736,7 +736,6 @@ final class CallServer {
         out.flush();
     }
 
-    @SuppressWarnings("unused")
     private static byte[] readFile(File f) throws IOException {
         try (FileInputStream in = new FileInputStream(f)) {
             byte[] buf = new byte[(int) f.length()];
