@@ -26,6 +26,8 @@ final class Updater {
     /** "안 함"을 고른 버전을 저장하는 설정 이름 */
     static final String PREFS = "updates";
     private static final String K_SKIP = "skip_";
+    /** 시작 시 자동 알림 켜기/끄기 (업데이트 팝업의 "업데이트 중지"에서 토글) */
+    static final String K_AUTO = "auto";
     /** 서버가 죽었을 때 쓰는 기존(GitHub) 주소 */
     private static final String FALLBACK_VERSION_URL =
             "https://raw.githubusercontent.com/zzangf1234-boop/s/main/VERSION";
@@ -234,8 +236,9 @@ final class Updater {
                 .show();
     }
 
-    /** 앱 시작 자동 확인 — 새 버전 && 건너뛰지 않았을 때만 알림 창 */
+    /** 앱 시작 자동 확인 — 자동 알림이 켜져 있고, 새 버전 && 건너뛰지 않았을 때만 알림 창 */
     static void autoCheck(Activity a) {
+        if (!a.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getBoolean(K_AUTO, true)) return;
         new Thread(() -> {
             StringBuilder reason = new StringBuilder();
             final Remote r = check(a, reason);

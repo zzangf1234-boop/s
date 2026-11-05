@@ -684,8 +684,7 @@ public class CallerActivity extends Activity implements VoiceRecorder.Host {
                 "🔐 허용된 기기",
                 "🌐 이미지·동영상 관리 · 기타 설정 (브라우저)",
                 "📺 TV·PC 화면 연결 방법",
-                "⬆ 업데이트 확인",
-                "↩ 이전 버전으로 되돌리기",
+                "⬆ 업데이트 (확인·중지·롤백)",
                 "번호 초기화 (다음 번호 = 1)",
                 "꺼짐 방지 (배터리 최적화 제외)",
                 "역할 다시 선택",
@@ -711,39 +710,60 @@ public class CallerActivity extends Activity implements VoiceRecorder.Host {
                             break;
                         case 11: showConnectInfo(); break;
                         case 12:
-                            msg("업데이트 확인 중…");
+                            msg("업데이트 정보 확인 중…");
                             io.execute(() -> {
-                                StringBuilder reason = new StringBuilder();
-                                final Updater.Remote r = Updater.check(CallerActivity.this, reason);
-                                ui.post(() -> Updater.showResult(CallerActivity.this, r, false));
+                                final Updater.Remote r = Updater.check(CallerActivity.this, new StringBuilder());
+                                ui.post(() -> showUpdateDialog(CallerActivity.this, r));
                             });
                             break;
                         case 13:
-                            msg("이전 버전 확인 중…");
-                            io.execute(() -> {
-                                final Updater.Remote r = Updater.check(CallerActivity.this, new StringBuilder());
-                                ui.post(() -> Updater.rollback(CallerActivity.this, r));
-                            });
-                            break;
-                        case 14:
                             lastSent = 0;
                             prefs.edit().putInt(K_LAST, 0).apply();
                             msg("번호를 초기화했습니다");
                             break;
-                        case 15: askBatteryExemption(); break;
-                        case 16:
+                        case 14: askBatteryExemption(); break;
+                        case 15:
                             HostService.stop(this);
                             prefs.edit().remove(MainActivity.KEY_MODE).apply();
                             prefs.edit().remove(MainActivity.KEY_TUTORIAL_DONE).apply();
                             startActivity(new Intent(this, MainActivity.class).putExtra(MainActivity.EXTRA_CHOOSE, true));
                             finish();
                             break;
-                        case 17:
+                        case 16:
                             HostService.stop(this);
                             finish();
                             break;
                     }
                 })
+                .show();
+    }
+
+    /** ⬆ 업데이트 통합 팝업: 확인 / 중지(자동 알림 켜기·끄기) / 롤백 */
+    private void showUpdateDialog(CallerActivity me, Updater.Remote r) {
+        boolean auto = prefs.getBoolean(Updater.K_AUTO, true);
+        String cur = Updater.current(this);
+        String msg = "현재 버전: " + cur;
+        if (r != null && r.version != null && !r.version.isEmpty()) {
+            int cmp = Updater.compare(cur, r.version);
+            msg += "\n서버 최신 버전: " + r.version
+                    + (cmp < 0 ? "\n\n새 버전이 있습니다" : cmp == 0 ? "\n\n최신 버전을 사용 중입니다" : "\n\n서버보다 새 버전입니다");
+            if (r.prevVersion != null) msg += "\n되돌릴 수 있는 이전 버전: " + r.prevVersion;
+        } else {
+            msg += "\n\n서버에 연결할 수 없습니다 (와이파이 확인)";
+        }
+        msg += "\n\n자동 알림: " + (auto ? "켜짐 (시작 시 새 버전 알림)" : "꺼짐");
+        new AlertDialog.Builder(this, R.style.DidDialog)
+                .setTitle("⬆ 업데이트")
+                .setMessage(msg)
+                .setPositiveButton("업데이트 확인", (d, w) -> {
+                    if (r != null) Updater.showResult(me, r, false);
+                    else msg("서버에 연결할 수 없습니다 (와이파이 확인)");
+                })
+                .setNeutralButton("업데이트 중지", (d, w) -> {
+                    prefs.edit().putBoolean(Updater.K_AUTO, !auto).apply();
+                    msg(auto ? "자동 알림을 껐습니다 — 업데이트는 메뉴에서 직접 확인" : "자동 알림을 켰습니다");
+                })
+                .setNegativeButton("업데이트 롤백", (d, w) -> Updater.rollback(me, r))
                 .show();
     }
 
