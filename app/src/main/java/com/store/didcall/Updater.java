@@ -19,7 +19,6 @@ final class Updater {
 
     /** 업데이트 서버 — 같은 와이파이면 내부 주소, 아니면 외부 주소 */
     private static final String[] SERVERS = {
-            "http://192.168.219.102:8182",
             "http://182.227.141.73:8182",
     };
     /** 서버의 다운로드 PIN */
