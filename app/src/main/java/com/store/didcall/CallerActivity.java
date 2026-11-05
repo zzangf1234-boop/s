@@ -712,8 +712,9 @@ public class CallerActivity extends Activity implements VoiceRecorder.Host {
                         case 12:
                             msg("업데이트 정보 확인 중…");
                             io.execute(() -> {
-                                final Updater.Remote r = Updater.check(CallerActivity.this, new StringBuilder());
-                                ui.post(() -> showUpdateDialog(CallerActivity.this, r));
+                                StringBuilder reason = new StringBuilder();
+                                final Updater.Remote r = Updater.check(CallerActivity.this, reason);
+                                ui.post(() -> showUpdateDialog(CallerActivity.this, r, reason.toString()));
                             });
                             break;
                         case 13:
@@ -739,7 +740,7 @@ public class CallerActivity extends Activity implements VoiceRecorder.Host {
     }
 
     /** ⬆ 업데이트 통합 팝업: 확인 / 중지(자동 알림 켜기·끄기) / 롤백 */
-    private void showUpdateDialog(CallerActivity me, Updater.Remote r) {
+    private void showUpdateDialog(CallerActivity me, Updater.Remote r, String failReason) {
         boolean auto = prefs.getBoolean(Updater.K_AUTO, true);
         String cur = Updater.current(this);
         String msg = "현재 버전: " + cur;
@@ -749,7 +750,7 @@ public class CallerActivity extends Activity implements VoiceRecorder.Host {
                     + (cmp < 0 ? "\n\n새 버전이 있습니다" : cmp == 0 ? "\n\n최신 버전을 사용 중입니다" : "\n\n서버보다 새 버전입니다");
             if (r.prevVersion != null) msg += "\n되돌릴 수 있는 이전 버전: " + r.prevVersion;
         } else {
-            msg += "\n\n서버에 연결할 수 없습니다 (와이파이 확인)";
+            msg += "\n\n업데이트 서버에 연결할 수 없습니다\n(" + (failReason == null || failReason.isEmpty() ? "네트워크 확인" : failReason) + ")";
         }
         msg += "\n\n자동 알림: " + (auto ? "켜짐 (시작 시 새 버전 알림)" : "꺼짐");
         new AlertDialog.Builder(this, R.style.DidDialog)
@@ -757,7 +758,7 @@ public class CallerActivity extends Activity implements VoiceRecorder.Host {
                 .setMessage(msg)
                 .setPositiveButton("업데이트 확인", (d, w) -> {
                     if (r != null) Updater.showResult(me, r, false);
-                    else msg("서버에 연결할 수 없습니다 (와이파이 확인)");
+                    else msg("서버 연결 실패: " + (failReason == null ? "네트워크 확인" : failReason));
                 })
                 .setNeutralButton("업데이트 중지", (d, w) -> {
                     prefs.edit().putBoolean(Updater.K_AUTO, !auto).apply();

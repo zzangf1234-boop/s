@@ -77,29 +77,35 @@ final class Updater {
     /** 서버에 새 버전이 있는지 물어봄. 실패 시 GitHub 으로 재시도.
      *  반환 Remote 가 null 이면 확인 실패 (reason 에 이유) */
     static Remote check(Context c, StringBuilder reason) {
-        // ① 폰 업데이트 서버 (이름은 현재 버전으로 물어보면 서버가 항상 최신 정보를 돌려줌)
+        // ① 폰 업데이트 서버 — 고정 이름(DID-Call.apk)으로 물어보고, 실패하면 버전 붙은 이름으로도 시도
+        //   (1.10.2 이하 구버전 앱과의 호환용. 서버에 없는 이름이면 오류 응답이 와서 JSONException 으로 떨어짐)
+        String[] names = {"DID-Call.apk", "DID-Call-v" + current(c) + ".apk"};
         for (String base : SERVERS) {
-            try {
-                // 파일명은 고정(DID-Call.apk) — 서버가 같은 이름 재업로드를 새 버전으로 인식해 이전 버전을 자동 보관
-                JSONObject o = new JSONObject(Http.get(base + "/api/version?name=DID-Call.apk&pin=" + PIN, 4000, 6000));
-                Remote r = new Remote();
-                // 서버는 버전을 "v1.10.1" 처럼 v 를 붙여 돌려주므로 떼고 비교
-                r.version = o.optString("version", "").replaceFirst("^v", "");
-                r.url = o.optString("url", "");
-                if (!o.optString("prevVersion", "").isEmpty()) {
-                    r.prevVersion = o.optString("prevVersion").replaceFirst("^v", "");
-                    r.prevUrl = o.optString("prevUrl", "");
+            for (String name : names) {
+                try {
+                    JSONObject o = new JSONObject(Http.get(base + "/api/version?name=" + name + "&pin=" + PIN, 4000, 6000));
+                    Remote r = new Remote();
+                    // 서버는 버전을 "v1.10.1" 처럼 v 를 붙여 돌려주므로 떼고 비교
+                    r.version = o.optString("version", "").replaceFirst("^v", "");
+                    r.url = o.optString("url", "");
+                    if (!o.optString("prevVersion", "").isEmpty()) {
+                        r.prevVersion = o.optString("prevVersion").replaceFirst("^v", "");
+                        r.prevUrl = o.optString("prevUrl", "");
+                    }
+                    if (r.version.isEmpty()) throw new Exception("빈 응답");
+                    r.fromServer = true;
+                    return r; // 새 버전이든 최신이든 롤백 메뉴에서 prev 를 쓰므로 그대로 반환
+                } catch (Exception e) {
+                    reason.setLength(0);
+                    reason.append("서버 응답 실패 (").append(name).append(")");
+                    // 다음 이름·주소로
                 }
-                r.fromServer = true;
-                return r; // 새 버전이든 최신이든 롤백 메뉴에서 prev 를 쓰므로 그대로 반환
-            } catch (Exception ignored) {
-                // 다음 주소로
             }
         }
         // ② GitHub 폴백
         try {
             String remote = Http.get(FALLBACK_VERSION_URL, 6000, 6000).trim();
-            if (remote.isEmpty()) { reason.append("버전 정보를 못 읽었습니다"); return null; }
+            if (remote.isEmpty()) { reason.append(" / 버전 정보를 못 읽었습니다"); return null; }
             Remote r = new Remote();
             r.version = remote;
             r.url = FALLBACK_APK_URL;
@@ -109,7 +115,7 @@ final class Updater {
             return r;
         } catch (Exception e) {
             String m = e.getMessage();
-            reason.append(m != null && !m.isEmpty() ? m : "인터넷에 연결할 수 없습니다");
+            reason.append(" / ").append(m != null && !m.isEmpty() ? m : "인터넷에 연결할 수 없습니다");
             return null;
         }
     }
