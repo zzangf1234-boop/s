@@ -672,14 +672,9 @@ public class CallerActivity extends Activity implements VoiceRecorder.Host {
     // ───────────────────────── 메뉴 ─────────────────────────
     private void showMenu() {
         String[] items = {
-                "🖼 TV 이미지 추가 (갤러리)",
-                "🎬 TV 동영상 추가 (갤러리)",
-                "🔔 알림음 선택",
-                "🗣 목소리 설정 (목소리·속도·높낮이)",
-                "🎙 내 목소리 녹음",
+                "📺 Display 설정 (이미지·소리·화면)",
                 "🌙 영업 시간 · 마감 안내",
                 "🧾 키오스크 주문 연동 (조리중)",
-                "↻ 화면 방향 (세로 / 가로)",
                 "⌨ 키 설정 (키패드·키보드)",
                 "🔐 허용된 기기",
                 "🌐 이미지·동영상 관리 · 기타 설정 (브라우저)",
@@ -693,23 +688,17 @@ public class CallerActivity extends Activity implements VoiceRecorder.Host {
         new AlertDialog.Builder(this, R.style.DidDialog)
                 .setItems(items, (d, which) -> {
                     switch (which) {
-                        case 0: pickMedia("image/*", REQ_IMAGES, "TV에 띄울 이미지 선택"); break;
-                        case 1: pickMedia("video/*", REQ_VIDEOS, "TV에 띄울 동영상 선택"); break;
-                        case 2: showChimes(); break;
-                        case 3: showVoiceSettings(); break;
-                        case 4: new VoiceRecorder(this, this).showList(last.optString("tts", HostService.DEF_TTS),
-                                last.optString("closeMsg", HostService.DEF_CLOSE_MSG), "rec".equals(last.optString("voiceMode"))); break;
-                        case 5: showClosing(); break;
-                        case 6: showKiosk(); break;
-                        case 7: chooseOrientation(); break;
-                        case 8: showKeySettings(); break;
-                        case 9: showDevices(); break;
-                        case 10:
+                        case 0: showDisplaySettings(); break;
+                        case 1: showClosing(); break;
+                        case 2: showKiosk(); break;
+                        case 3: showKeySettings(); break;
+                        case 4: showDevices(); break;
+                        case 5:
                             try { startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse(BASE + "/"))); }
                             catch (Exception e) { msg("브라우저를 열 수 없습니다"); }
                             break;
-                        case 11: showConnectInfo(); break;
-                        case 12:
+                        case 6: showConnectInfo(); break;
+                        case 7:
                             msg("업데이트 정보 확인 중…");
                             io.execute(() -> {
                                 StringBuilder reason = new StringBuilder();
@@ -717,23 +706,49 @@ public class CallerActivity extends Activity implements VoiceRecorder.Host {
                                 ui.post(() -> showUpdateDialog(CallerActivity.this, r, reason.toString()));
                             });
                             break;
-                        case 13:
+                        case 8:
                             lastSent = 0;
                             prefs.edit().putInt(K_LAST, 0).apply();
                             msg("번호를 초기화했습니다");
                             break;
-                        case 14: askBatteryExemption(); break;
-                        case 15:
+                        case 9: askBatteryExemption(); break;
+                        case 10:
                             HostService.stop(this);
                             prefs.edit().remove(MainActivity.KEY_MODE).apply();
                             prefs.edit().remove(MainActivity.KEY_TUTORIAL_DONE).apply();
                             startActivity(new Intent(this, MainActivity.class).putExtra(MainActivity.EXTRA_CHOOSE, true));
                             finish();
                             break;
-                        case 16:
+                        case 11:
                             HostService.stop(this);
                             finish();
                             break;
+                    }
+                })
+                .show();
+    }
+
+    /** 📺 Display 설정 — TV 이미지·동영상, 알림음·목소리, 화면 방향을 한 리스트에 모은 하위 메뉴 */
+    private void showDisplaySettings() {
+        String[] items = {
+                "🖼 TV 이미지 추가 (갤러리)",
+                "🎬 TV 동영상 추가 (갤러리)",
+                "🔔 알림음 선택",
+                "🗣 목소리 설정 (목소리·속도·높낮이)",
+                "🎙 내 목소리 녹음",
+                "↻ 화면 방향 (세로 / 가로)",
+        };
+        new AlertDialog.Builder(this, R.style.DidDialog)
+                .setTitle("📺 Display 설정")
+                .setItems(items, (d, which) -> {
+                    switch (which) {
+                        case 0: pickMedia("image/*", REQ_IMAGES, "TV에 띄울 이미지 선택"); break;
+                        case 1: pickMedia("video/*", REQ_VIDEOS, "TV에 띄울 동영상 선택"); break;
+                        case 2: showChimes(); break;
+                        case 3: showVoiceSettings(); break;
+                        case 4: new VoiceRecorder(this, this).showList(last.optString("tts", HostService.DEF_TTS),
+                                last.optString("closeMsg", HostService.DEF_CLOSE_MSG), "rec".equals(last.optString("voiceMode"))); break;
+                        case 5: chooseOrientation(); break;
                     }
                 })
                 .show();
