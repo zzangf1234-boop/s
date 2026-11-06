@@ -17,8 +17,8 @@ import android.widget.LinearLayout;
 import android.widget.TextView;
 
 /**
- * 근태 등록 QR 화면: 매번 새 인증이 필요하므로 WebView 의 쿠키·캐시를
- * 전부 지우고 새로 열고, 30초 후 자동으로 닫혀 호출기 화면으로 돌아옵니다.
+ * 근태 등록 QR 화면: 로그인 상태(쿠키·캐시)를 계속 유지하며 WebView 로 열고,
+ * 30초 후 자동으로 닫혀 호출기 화면으로 돌아옵니다.
  */
 public class QrActivity extends Activity {
 
@@ -51,20 +51,20 @@ public class QrActivity extends Activity {
         top.addView(close, new LinearLayout.LayoutParams(-2, -2));
         root.addView(top, new LinearLayout.LayoutParams(-1, -2));
 
-        // 새 인증: 쿠키·캐시 전부 제거
+        // 로그인 상태 유지: 쿠키·저장소를 절대 지우지 않고 이어서 사용
         try {
-            CookieManager.getInstance().removeAllCookies(null);
-            CookieManager.getInstance().flush();
+            CookieManager cm = CookieManager.getInstance();
+            cm.setAcceptCookie(true);
+            cm.setAcceptThirdPartyCookies(web, true);
+            cm.flush();
         } catch (Exception ignored) {
         }
         web = new WebView(this);
         WebSettings s = web.getSettings();
         s.setJavaScriptEnabled(true);
         s.setDomStorageEnabled(true);
-        s.setCacheMode(WebSettings.LOAD_NO_CACHE);
-        web.clearCache(true);
-        web.clearFormData();
-        web.clearHistory();
+        s.setDatabaseEnabled(true);
+        s.setCacheMode(WebSettings.LOAD_DEFAULT); // 캐시 활용 → 빠른 로딩, 로그인 유지
         web.setWebViewClient(new WebViewClient());
         web.setWebChromeClient(new WebChromeClient());
         root.addView(web, new LinearLayout.LayoutParams(-1, 0, 1f));
