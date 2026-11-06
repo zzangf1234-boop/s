@@ -346,15 +346,19 @@ public class CallerActivity extends Activity implements VoiceRecorder.Host {
         root.setPadding(Ui.dp(this, 14), Ui.dp(this, 14), Ui.dp(this, 14), Ui.dp(this, 14));
         root.addView(header());
         root.addView(makeWaiting());
-        root.addView(makeInput(kp ? 60 : 130), new LinearLayout.LayoutParams(-1, kp ? Ui.dp(this, 108) : Ui.dp(this, 200)));
+        // 번호창: 남은 영역의 gravity 로 세로 가운데 정렬 (기기 높이 무관)
+        LinearLayout center = new LinearLayout(this);
+        center.setOrientation(LinearLayout.VERTICAL);
+        center.setGravity(Gravity.CENTER_VERTICAL);
+        root.addView(center, new LinearLayout.LayoutParams(-1, 0, 1f));
+        LinearLayout.LayoutParams inLp = new LinearLayout.LayoutParams(-1, kp ? Ui.dp(this, 108) : Ui.dp(this, 200));
+        center.addView(makeInput(kp ? 60 : 130), inLp);
+        // 호출 버튼부터는 화면 아래에 붙임
         if (kp) {
+            // 키패드 모드: 키패드가 남은 세로 공간을 전부 채움 (weight 명령 — 기기 크기 무관)
             LinearLayout.LayoutParams padLp = new LinearLayout.LayoutParams(-1, 0, 1f);
             padLp.topMargin = g;
             root.addView(makeKeypad(), padLp);
-        } else {
-            View sp = new View(this);
-            LinearLayout.LayoutParams spLp = new LinearLayout.LayoutParams(-1, 0, 1f);
-            root.addView(sp, spLp);
         }
         LinearLayout.LayoutParams cLp = new LinearLayout.LayoutParams(-1, Ui.dp(this, 80));
         cLp.topMargin = g;
