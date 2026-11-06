@@ -237,8 +237,7 @@ public class CallerActivity extends Activity implements VoiceRecorder.Host {
             qrLastTap = now;
             if (qrTaps >= 3) {
                 qrTaps = 0;
-                try { startActivity(new Intent(this, QrActivity.class).putExtra(QrActivity.EXTRA_URL, QR_URL)); }
-                catch (Exception e) { msg("근태 화면을 열 수 없습니다"); }
+                QrReturner.open(this); // 크롬으로 열고 30초 후 이 화면을 다시 앞으로
             }
         });
         return inputView;
