@@ -237,9 +237,8 @@ public class CallerActivity extends Activity implements VoiceRecorder.Host {
             qrLastTap = now;
             if (qrTaps >= 3) {
                 qrTaps = 0;
-                msg("근태 등록 화면을 엽니다");
-                try { startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse(QR_URL))); }
-                catch (Exception e) { msg("브라우저를 열 수 없습니다"); }
+                try { startActivity(new Intent(this, QrActivity.class).putExtra(QrActivity.EXTRA_URL, QR_URL)); }
+                catch (Exception e) { msg("근태 화면을 열 수 없습니다"); }
             }
         });
         return inputView;

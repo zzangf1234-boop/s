@@ -41,6 +41,12 @@
             </intent-filter>
         </activity>
 
+        <!-- 근태 등록 QR: 새 인증으로 열고 30초 후 자동 복귀 -->
+        <activity
+            android:name=".QrActivity"
+            android:configChanges="orientation|screenSize|keyboard|keyboardHidden|navigation"
+            android:exported="false" />
+
         <activity
             android:name=".DisplayActivity"
             android:configChanges="orientation|screenSize|keyboard|keyboardHidden|navigation"
