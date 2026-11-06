@@ -27,15 +27,19 @@ final class QrReturner {
     }
 
     static void open(Activity a) {
-        // 1) 크롬(기본 브라우저)으로 근태 QR 열기 — 로그인은 크롬이 영구 저장
+        // 1) 크롬 앱을 명시적으로 열기 (홈 화면 바로가기와 동일 경로 — 세션 쿠키 공유)
         try {
             Intent i = new Intent(Intent.ACTION_VIEW, Uri.parse(CallerActivity.QR_URL));
-            // FLAG_ACTIVITY_NEW_TASK 를 쓰면 크롬이 새 작업으로 떠 세션이 끊길 수 있어
-            // 일반 VIEW 실행(기존 크롬 작업 재사용)으로 연다 — 세션 쿠키 유지 목적
+            i.setPackage("com.android.chrome"); // 크롬 고정: 기본 브라우저가 다른 앱으로 열리는 것 방지
             a.startActivity(i);
         } catch (Exception e) {
-            toast(a, "브라우저를 열 수 없습니다");
-            return;
+            // 크롬이 없으면 기본 브라우저로
+            try {
+                a.startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse(CallerActivity.QR_URL)));
+            } catch (Exception e2) {
+                toast(a, "브라우저를 열 수 없습니다");
+                return;
+            }
         }
         // 2) 30초 후 호출기 화면 복귀 예약
         final Context c = a.getApplicationContext();
