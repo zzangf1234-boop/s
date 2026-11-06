@@ -33,8 +33,11 @@ final class QrReturner {
         //    - 처음 한 번은 크롬에서 근태 페이지를 열어 로그인해 두면,
         //      그 탭이 "마지막 탭"으로 남아 이후 실행마다 재사용됨
         try {
-            Intent i = a.getPackageManager().getLaunchIntentForPackage("com.android.chrome");
-            if (i == null) throw new Exception("no chrome");
+            // getLaunchIntentForPackage 는 크롬 바로가기가 만들어지면 ACTION_VIEW+URL 로
+            // 재정의되는 사례가 있어(새 탭 생성됨) MAIN 인텐트를 직접 구성한다
+            Intent i = new Intent(Intent.ACTION_MAIN);
+            i.addCategory(Intent.CATEGORY_LAUNCHER);
+            i.setClassName("com.android.chrome", "com.google.android.apps.chrome.Main");
             i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
             a.startActivity(i);
         } catch (Exception e) {
