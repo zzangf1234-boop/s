@@ -27,23 +27,56 @@ final class QrReturner {
     }
 
     static void open(Activity a) {
-        // 1) 크롬 앱을 명시적으로 열기 (홈 화면 바로가기와 동일 경로 — 세션 쿠키 공유)
+        // 1) 크롬 웹앱("홈 화면에 추가"로 만든 바로가기)을 직접 열기
+        //    - 홈 아이콘을 누르는 것과 완전히 같은 창·세션 → 로그인 유지
+        //    - 웹앱 활동명: com.google.android.apps.chrome.Main 의 "웹앱 단축키" 활동
+        if (openWebApp(a)) {
+            // 2) 30초 후 호출기 화면 복귀 예약
+            final Context c = a.getApplicationContext();
+            new Handler(Looper.getMainLooper()).postDelayed(() -> bringBack(c), RETURN_SECONDS * 1000L);
+            return;
+        }
+        // 웹앱을 못 찾으면 크롬으로 그냥 열기 (기존 방식 — 로그인 매번 필요할 수 있음)
         try {
             Intent i = new Intent(Intent.ACTION_VIEW, Uri.parse(CallerActivity.QR_URL));
-            i.setPackage("com.android.chrome"); // 크롬 고정: 기본 브라우저가 다른 앱으로 열리는 것 방지
+            i.setPackage("com.android.chrome");
+            i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
             a.startActivity(i);
         } catch (Exception e) {
-            // 크롬이 없으면 기본 브라우저로
-            try {
-                a.startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse(CallerActivity.QR_URL)));
-            } catch (Exception e2) {
-                toast(a, "브라우저를 열 수 없습니다");
-                return;
-            }
+            toast(a, "브라우저를 열 수 없습니다");
+            return;
         }
-        // 2) 30초 후 호출기 화면 복귀 예약
         final Context c = a.getApplicationContext();
         new Handler(Looper.getMainLooper()).postDelayed(() -> bringBack(c), RETURN_SECONDS * 1000L);
+    }
+
+    /** 크롬 웹앱(홈 화면 바로가기)을 찾아 실행. 찾으면 true */
+    private static boolean openWebApp(Activity a) {
+        android.content.pm.PackageManager pm = a.getPackageManager();
+        // 크롬이 만든 웹앱 활동은 URL 로 매칭되는 활동이 별도 등록되어 있음
+        Intent probe = new Intent(Intent.ACTION_VIEW, Uri.parse(CallerActivity.QR_URL));
+        probe.setPackage("com.android.chrome");
+        java.util.List<android.content.pm.ResolveInfo> acts = pm.queryIntentActivities(probe, 0);
+        // 웹앱 활동이 여러 개면 이름에 "main" 혹은 URL 해시가 붙은 활동 — 브라우저 본체가 아닌 것을 고름
+        String chosen = null;
+        for (android.content.pm.ResolveInfo ri : acts) {
+            String n = ri.activityInfo.name;
+            if (n != null && !n.equals("com.google.android.apps.chrome.Main")
+                    && !n.endsWith(".Main") && n.contains("com.google.android.apps.chrome")) {
+                chosen = ri.activityInfo.packageName + "/" + n;
+                break;
+            }
+        }
+        if (chosen == null) return false;
+        try {
+            Intent i = new Intent();
+            i.setClassName(acts.get(0).activityInfo.packageName, chosen.split("/", 2)[1]);
+            i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+            a.startActivity(i);
+            return true;
+        } catch (Exception e) {
+            return false;
+        }
     }
 
     /** 호출기 화면을 크롬 위로 다시 띄우기 */
