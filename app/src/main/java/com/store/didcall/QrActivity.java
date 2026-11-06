@@ -17,25 +17,31 @@ import android.widget.LinearLayout;
 import android.widget.TextView;
 
 /**
- * 근태 등록 QR 화면: 로그인 상태(쿠키·캐시)를 계속 유지하며 WebView 로 열고,
- * 30초 후 자동으로 닫혀 호출기 화면으로 돌아옵니다.
+ * 근태 등록 QR 화면. 사이트가 세션 쿠키만 써서 WebView 를 닫으면 인증이 풀리므로,
+ * WebView 인스턴스를 앱이 살아 있는 동안 HOLD 에 보관해 닫지 않고 재사용합니다.
+ * (30초 후 화면만 닫히고 WebView 는 메모리에 유지 → 다음에 열면 로그인 그대로)
  */
 public class QrActivity extends Activity {
 
     public static final String EXTRA_URL = "url";
     private static final int RETURN_SECONDS = 30;
 
-    private WebView web;
+    /** 화면이 닫혀도 버리지 않는 공용 WebView (호출기 앱 프로세스가 살아 있는 동안 유지) */
+    @SuppressLint("StaticFieldLeak")
+    private static WebView HOLD;
+    private static boolean HOLD_READY;
+
     private TextView countdown;
     private final Handler ui = new Handler(Looper.getMainLooper());
     private int left = RETURN_SECONDS;
+    private LinearLayout root;
 
     @SuppressLint("SetJavaScriptEnabled")
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
 
-        LinearLayout root = new LinearLayout(this);
+        root = new LinearLayout(this);
         root.setOrientation(LinearLayout.VERTICAL);
         root.setBackgroundColor(Color.BLACK);
 
@@ -51,29 +57,39 @@ public class QrActivity extends Activity {
         top.addView(close, new LinearLayout.LayoutParams(-2, -2));
         root.addView(top, new LinearLayout.LayoutParams(-1, -2));
 
-        // 로그인 상태 유지: 쿠키·저장소를 절대 지우지 않고 이어서 사용
-        web = new WebView(this);
-        try {
-            CookieManager cm = CookieManager.getInstance();
-            cm.setAcceptCookie(true);
-            cm.setAcceptThirdPartyCookies(web, true);
-            cm.flush();
-        } catch (Exception ignored) {
+        if (HOLD == null) { // 첫 열기: 새로 만들고 (세션 유지를 위해 이후 절대 destroy 하지 않음)
+            HOLD = new WebView(this);
+            WebSettings s = HOLD.getSettings();
+            s.setJavaScriptEnabled(true);
+            s.setDomStorageEnabled(true);
+            s.setDatabaseEnabled(true);
+            s.setCacheMode(WebSettings.LOAD_DEFAULT);
+            try {
+                CookieManager cm = CookieManager.getInstance();
+                cm.setAcceptCookie(true);
+                cm.setAcceptThirdPartyCookies(HOLD, true);
+            } catch (Exception ignored) {
+            }
+            HOLD.setWebViewClient(new WebViewClient());
+            HOLD.setWebChromeClient(new WebChromeClient());
+            root.addView(HOLD, new LinearLayout.LayoutParams(-1, 0, 1f));
+            String url = getIntent().getStringExtra(EXTRA_URL);
+            if (url == null || url.isEmpty()) url = CallerActivity.QR_URL;
+            HOLD.loadUrl(url);
+            HOLD_READY = true;
+        } else {
+            // 다시 열기: 같은 WebView 를 붙여 로그인 상태 그대로 재사용
+            if (HOLD.getParent() instanceof ViewGroup) {
+                ((ViewGroup) HOLD.getParent()).removeView(HOLD);
+            }
+            root.addView(HOLD, new LinearLayout.LayoutParams(-1, 0, 1f));
+            if (!HOLD_READY) { // 이전 화면에서 닫힌 뒤라면 페이지를 다시 읽기
+                HOLD.reload();
+                HOLD_READY = true;
+            }
         }
-        WebSettings s = web.getSettings();
-        s.setJavaScriptEnabled(true);
-        s.setDomStorageEnabled(true);
-        s.setDatabaseEnabled(true);
-        s.setCacheMode(WebSettings.LOAD_DEFAULT); // 캐시 활용 → 빠른 로딩, 로그인 유지
-        web.setWebViewClient(new WebViewClient());
-        web.setWebChromeClient(new WebChromeClient());
-        root.addView(web, new LinearLayout.LayoutParams(-1, 0, 1f));
+
         setContentView(root, new ViewGroup.LayoutParams(-1, -1));
-
-        String url = getIntent().getStringExtra(EXTRA_URL);
-        if (url == null || url.isEmpty()) url = CallerActivity.QR_URL;
-        web.loadUrl(url);
-
         tick();
     }
 
@@ -90,18 +106,17 @@ public class QrActivity extends Activity {
 
     @Override
     protected void onPause() {
-        // 화면을 덮거나 닫기 전에 쿠키를 디스크에 확실히 저장 → 다음 열 때 로그인 유지
         try { CookieManager.getInstance().flush(); } catch (Exception ignored) {}
         super.onPause();
     }
 
     @Override
     protected void onDestroy() {
+        // WebView 는 HOLD 에 남겨 세션 유지 — 화면(레이아웃)만 정리
         ui.removeCallbacksAndMessages(null);
-        if (web != null) {
-            web.loadUrl("about:blank");
-            web.removeAllViews();
-            web.destroy();
+        if (HOLD != null && HOLD.getParent() == root) {
+            root.removeView(HOLD);
+            HOLD_READY = false; // 다음 열기 때 reload 하도록
         }
         super.onDestroy();
     }
