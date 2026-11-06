@@ -1,9 +1,10 @@
-현재 호출 줄 제거 + 업데이트 설치 문제 수정 (1.7.0)
+최적화 — 쓸모없는 코드 정리
 
-- 호출기 화면의 "현재 호출 번호" 줄 제거 (TV 화면 커스터마이징으로 대체 가능)
-- 업데이트 APK 설치가 안 되던 문제:
-  - REQUEST_INSTALL_PACKAGES 권한 추가 (설치 화면이 아예 안 뜨던 원인)
-  - ApkProvider 를 exported 로 열어 시스템 설치 앱이 APK 를 읽게 수정
-  - 설치 앱에 URI 읽기 권한을 grantUriPermission 으로도 부여
+- VoiceRecorder: 미사용 big() 헬퍼와 TypedValue import 삭제
+- ApkStore: 미호출 cleanup() 삭제, old.apk 삭제 로직 단순화
+- CallServer: readFile 형식 정리
+- 나머지 상수·메서드는 전부 사용 확인 후 유지
+
+[skip ci]
 
 Co-Authored-By: Claude Code <noreply@anthropic.com>

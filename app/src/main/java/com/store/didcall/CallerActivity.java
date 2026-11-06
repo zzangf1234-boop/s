@@ -218,6 +218,10 @@ public class CallerActivity extends Activity implements VoiceRecorder.Host {
         return top;
     }
 
+    private static final String QR_URL = "https://pos-qr.gachiup.kr/login/index.html?check=true";
+    private int qrTaps = 0;                       // 숫자창 연속 터치 → 3번이면 근태 QR 열기
+    private long qrLastTap = 0;
+
     private TextView makeInput(float sp) {
         inputView = Ui.text(this, "", sp, Ui.YELLOW, true);
         inputView.setGravity(Gravity.CENTER);
@@ -227,6 +231,17 @@ public class CallerActivity extends Activity implements VoiceRecorder.Host {
         if (Build.VERSION.SDK_INT >= 26) { // "123~130" 처럼 길어지면 글자를 줄여 한 줄에
             inputView.setAutoSizeTextTypeUniformWithConfiguration(20, (int) sp, 2, android.util.TypedValue.COMPLEX_UNIT_SP);
         }
+        inputView.setOnClickListener(v -> {       // 숫자창 연속 3번 터치 = 근태 등록 QR
+            long now = System.currentTimeMillis();
+            qrTaps = (now - qrLastTap < 800) ? qrTaps + 1 : 1;
+            qrLastTap = now;
+            if (qrTaps >= 3) {
+                qrTaps = 0;
+                msg("근태 등록 화면을 엽니다");
+                try { startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse(QR_URL))); }
+                catch (Exception e) { msg("브라우저를 열 수 없습니다"); }
+            }
+        });
         return inputView;
     }
 
