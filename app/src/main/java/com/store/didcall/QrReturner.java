@@ -21,7 +21,7 @@ import android.widget.TextView;
  */
 final class QrReturner {
 
-    private static final int RETURN_SECONDS = 30;
+    private static final int RETURN_SECONDS = 20;
 
     private QrReturner() {
     }
