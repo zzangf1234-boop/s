@@ -89,6 +89,13 @@ public class QrActivity extends Activity {
     }
 
     @Override
+    protected void onPause() {
+        // 화면을 덮거나 닫기 전에 쿠키를 디스크에 확실히 저장 → 다음 열 때 로그인 유지
+        try { CookieManager.getInstance().flush(); } catch (Exception ignored) {}
+        super.onPause();
+    }
+
+    @Override
     protected void onDestroy() {
         ui.removeCallbacksAndMessages(null);
         if (web != null) {
