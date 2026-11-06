@@ -30,7 +30,8 @@ final class QrReturner {
         // 1) 크롬(기본 브라우저)으로 근태 QR 열기 — 로그인은 크롬이 영구 저장
         try {
             Intent i = new Intent(Intent.ACTION_VIEW, Uri.parse(CallerActivity.QR_URL));
-            i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+            // FLAG_ACTIVITY_NEW_TASK 를 쓰면 크롬이 새 작업으로 떠 세션이 끊길 수 있어
+            // 일반 VIEW 실행(기존 크롬 작업 재사용)으로 연다 — 세션 쿠키 유지 목적
             a.startActivity(i);
         } catch (Exception e) {
             toast(a, "브라우저를 열 수 없습니다");
