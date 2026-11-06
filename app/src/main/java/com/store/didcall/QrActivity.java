@@ -52,6 +52,18 @@ public class QrActivity extends Activity {
         top.setPadding(Ui.dp(this, 14), Ui.dp(this, 8), Ui.dp(this, 14), Ui.dp(this, 8));
         countdown = Ui.text(this, "", 15, Ui.YELLOW, true);
         top.addView(countdown, new LinearLayout.LayoutParams(0, -2, 1f));
+        TextView chrome = Ui.button(this, "🌐 크롬으로 열기", Ui.KEY2, 14);
+        chrome.setOnClickListener(v -> {
+            String u = getIntent().getStringExtra(EXTRA_URL);
+            if (u == null || u.isEmpty()) u = CallerActivity.QR_URL;
+            try {
+                startActivity(new android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse(u)));
+                finish();
+            } catch (Exception e) {
+                countdown.setText("크롬(브라우저)을 열 수 없습니다");
+            }
+        });
+        top.addView(chrome, new LinearLayout.LayoutParams(-2, -2));
         TextView close = Ui.button(this, "지금 닫기", Ui.KEY2, 15);
         close.setOnClickListener(v -> finish());
         top.addView(close, new LinearLayout.LayoutParams(-2, -2));
