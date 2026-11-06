@@ -52,6 +52,7 @@ public class QrActivity extends Activity {
         root.addView(top, new LinearLayout.LayoutParams(-1, -2));
 
         // 로그인 상태 유지: 쿠키·저장소를 절대 지우지 않고 이어서 사용
+        web = new WebView(this);
         try {
             CookieManager cm = CookieManager.getInstance();
             cm.setAcceptCookie(true);
@@ -59,7 +60,6 @@ public class QrActivity extends Activity {
             cm.flush();
         } catch (Exception ignored) {
         }
-        web = new WebView(this);
         WebSettings s = web.getSettings();
         s.setJavaScriptEnabled(true);
         s.setDomStorageEnabled(true);

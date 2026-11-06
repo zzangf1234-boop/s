@@ -218,7 +218,7 @@ public class CallerActivity extends Activity implements VoiceRecorder.Host {
         return top;
     }
 
-    private static final String QR_URL = "https://pos-qr.gachiup.kr/login/index.html?check=true";
+    static final String QR_URL = "https://pos-qr.gachiup.kr/login/index.html?check=true";
     private int qrTaps = 0;                       // 숫자창 연속 터치 → 3번이면 근태 QR 열기
     private long qrLastTap = 0;
 
