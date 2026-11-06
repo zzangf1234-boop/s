@@ -53,30 +53,30 @@ final class QrReturner {
     /** 크롬 웹앱(홈 화면 바로가기)을 찾아 실행. 찾으면 true */
     private static boolean openWebApp(Activity a) {
         android.content.pm.PackageManager pm = a.getPackageManager();
-        // 크롬이 만든 웹앱 활동은 URL 로 매칭되는 활동이 별도 등록되어 있음
-        Intent probe = new Intent(Intent.ACTION_VIEW, Uri.parse(CallerActivity.QR_URL));
-        probe.setPackage("com.android.chrome");
-        java.util.List<android.content.pm.ResolveInfo> acts = pm.queryIntentActivities(probe, 0);
-        // 웹앱 활동이 여러 개면 이름에 "main" 혹은 URL 해시가 붙은 활동 — 브라우저 본체가 아닌 것을 고름
-        String chosen = null;
-        for (android.content.pm.ResolveInfo ri : acts) {
-            String n = ri.activityInfo.name;
-            if (n != null && !n.equals("com.google.android.apps.chrome.Main")
-                    && !n.endsWith(".Main") && n.contains("com.google.android.apps.chrome")) {
-                chosen = ri.activityInfo.packageName + "/" + n;
-                break;
+
+        // 방법 1: 크롬 웹앱 전용 활동(WebView 활동)을 직접 지정해 실행
+        //  - 크롬이 "홈 화면에 추가"로 만든 웹앱은 com.google.android.apps.chrome.WebApkActivity 또는
+        //    WebApkMainActivity (웹앱 패키지: org.chromium.webapk.<해시>) 로 등록됨
+        String[] webApkActivities = {
+                "org.chromium.webapk.lib.common.WebApkIntentFactory", // 없을 수 있음
+        };
+        // 웹앱 패키지는 org.chromium.webapk.* — 그 패키지의 런처 활동을 찾아 실행하는 게 가장 확실
+        java.util.List<android.content.pm.ApplicationInfo> apps =
+                pm.getInstalledApplications(android.content.pm.PackageManager.GET_META_DATA);
+        for (android.content.pm.ApplicationInfo ai : apps) {
+            if (ai.packageName != null && ai.packageName.startsWith("org.chromium.webapk")) {
+                Intent launch = pm.getLaunchIntentForPackage(ai.packageName);
+                if (launch != null) {
+                    // 웹앱이 여러 개일 수 있으니 URL이 맞는지는 실행 후 사이트가 알아서 처리
+                    try {
+                        a.startActivity(launch);
+                        return true;
+                    } catch (Exception ignored) {
+                    }
+                }
             }
         }
-        if (chosen == null) return false;
-        try {
-            Intent i = new Intent();
-            i.setClassName(acts.get(0).activityInfo.packageName, chosen.split("/", 2)[1]);
-            i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-            a.startActivity(i);
-            return true;
-        } catch (Exception e) {
-            return false;
-        }
+        return false;
     }
 
     /** 호출기 화면을 크롬 위로 다시 띄우기 */
