@@ -27,56 +27,28 @@ final class QrReturner {
     }
 
     static void open(Activity a) {
-        // 1) 크롬 웹앱("홈 화면에 추가"로 만든 바로가기)을 직접 열기
-        //    - 홈 아이콘을 누르는 것과 완전히 같은 창·세션 → 로그인 유지
-        //    - 웹앱 활동명: com.google.android.apps.chrome.Main 의 "웹앱 단축키" 활동
-        if (openWebApp(a)) {
-            // 2) 30초 후 호출기 화면 복귀 예약
-            final Context c = a.getApplicationContext();
-            new Handler(Looper.getMainLooper()).postDelayed(() -> bringBack(c), RETURN_SECONDS * 1000L);
-            return;
-        }
-        // 웹앱을 못 찾으면 크롬으로 그냥 열기 (기존 방식 — 로그인 매번 필요할 수 있음)
+        // 1) 크롬 앱 자체를 실행 (URL 을 넘기지 않음)
+        //    - 크롬이 마지막 탭을 그대로 복원 → 근태 사이트의 로그인 세션이 유지됨
+        //    - URL 로 열면 새 탭이 생겨 매번 재인증 필요 (테스트로 확인됨)
+        //    - 처음 한 번은 크롬에서 근태 페이지를 열어 로그인해 두면,
+        //      그 탭이 "마지막 탭"으로 남아 이후 실행마다 재사용됨
         try {
-            Intent i = new Intent(Intent.ACTION_VIEW, Uri.parse(CallerActivity.QR_URL));
-            i.setPackage("com.android.chrome");
+            Intent i = a.getPackageManager().getLaunchIntentForPackage("com.android.chrome");
+            if (i == null) throw new Exception("no chrome");
             i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
             a.startActivity(i);
         } catch (Exception e) {
-            toast(a, "브라우저를 열 수 없습니다");
-            return;
-        }
-        final Context c = a.getApplicationContext();
-        new Handler(Looper.getMainLooper()).postDelayed(() -> bringBack(c), RETURN_SECONDS * 1000L);
-    }
-
-    /** 크롬 웹앱(홈 화면 바로가기)을 찾아 실행. 찾으면 true */
-    private static boolean openWebApp(Activity a) {
-        android.content.pm.PackageManager pm = a.getPackageManager();
-
-        // 방법 1: 크롬 웹앱 전용 활동(WebView 활동)을 직접 지정해 실행
-        //  - 크롬이 "홈 화면에 추가"로 만든 웹앱은 com.google.android.apps.chrome.WebApkActivity 또는
-        //    WebApkMainActivity (웹앱 패키지: org.chromium.webapk.<해시>) 로 등록됨
-        String[] webApkActivities = {
-                "org.chromium.webapk.lib.common.WebApkIntentFactory", // 없을 수 있음
-        };
-        // 웹앱 패키지는 org.chromium.webapk.* — 그 패키지의 런처 활동을 찾아 실행하는 게 가장 확실
-        java.util.List<android.content.pm.ApplicationInfo> apps =
-                pm.getInstalledApplications(android.content.pm.PackageManager.GET_META_DATA);
-        for (android.content.pm.ApplicationInfo ai : apps) {
-            if (ai.packageName != null && ai.packageName.startsWith("org.chromium.webapk")) {
-                Intent launch = pm.getLaunchIntentForPackage(ai.packageName);
-                if (launch != null) {
-                    // 웹앱이 여러 개일 수 있으니 URL이 맞는지는 실행 후 사이트가 알아서 처리
-                    try {
-                        a.startActivity(launch);
-                        return true;
-                    } catch (Exception ignored) {
-                    }
-                }
+            // 크롬이 없으면 기본 브라우저로 URL 열기 (최후 fallback)
+            try {
+                a.startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse(CallerActivity.QR_URL)));
+            } catch (Exception e2) {
+                toast(a, "브라우저를 열 수 없습니다");
+                return;
             }
         }
-        return false;
+        // 2) 30초 후 호출기 화면 복귀 예약
+        final Context c = a.getApplicationContext();
+        new Handler(Looper.getMainLooper()).postDelayed(() -> bringBack(c), RETURN_SECONDS * 1000L);
     }
 
     /** 호출기 화면을 크롬 위로 다시 띄우기 */
