@@ -98,6 +98,8 @@ public class HostService extends Service implements CallServer.Host {
     private PrintReceiver receiver;
     /** 최근 받은 주문서 기록 (호출기 설정 화면에 표시) */
     private final java.util.LinkedList<JSONObject> kioskLog = new java.util.LinkedList<>();
+    /** 수신 기록(진단): 연결·끊김·접수 전부 — 최근 50줄 */
+    private final java.util.LinkedList<String> rxLog = new java.util.LinkedList<>();
     private SharedPreferences prefs;
     private final Handler main = new Handler(Looper.getMainLooper());
 
@@ -158,6 +160,7 @@ public class HostService extends Service implements CallServer.Host {
         receiver = new PrintReceiver(new PrintReceiver.Listener() {
             @Override public void onReceipt(byte[] raw, String from, String relayResult) { handleReceipt(raw, from, relayResult); }
             @Override public String relayTarget() { return prefs.getString(K_RELAY, ""); }
+            @Override public void onLog(String line) { rxLog(line); }
         });
         if (prefs.getBoolean(K_KIOSK_ON, false)) receiver.start();
         ticker.scheduleWithFixedDelay(this::checkClosing, 3, 15, TimeUnit.SECONDS);
@@ -415,6 +418,9 @@ public class HostService extends Service implements CallServer.Host {
         JSONArray log = new JSONArray();
         synchronized (kioskLog) { for (JSONObject j : kioskLog) log.put(j); }
         o.put("kioskLog", log);
+        JSONArray rx = new JSONArray();
+        synchronized (rxLog) { for (String l : rxLog) rx.put(l); }
+        o.put("rxLog", rx);
     }
 
     @Override
@@ -527,6 +533,9 @@ public class HostService extends Service implements CallServer.Host {
         for (String n : r.allNumbers()) { // 붙어 온 주문 전부 읽음 — 씹힘 방지
             if (store.addWaiting(n, r.summary())) added = true;
         }
+        rxLog(from + " 접수: " + (r.allNumbers().isEmpty() ? "번호 못 찾음" : "번호 " + r.allNumbers())
+                + (added ? " → 대기 추가" : (r.allNumbers().isEmpty() ? "" : " → 이미 있음/무시"))
+                + (raw.length > 0 ? " (" + raw.length + "바이트)" : ""));
         if (added) prefs.edit().putString(K_STATE, store.save()).apply();
         try {
             JSONObject j = new JSONObject();
@@ -542,9 +551,18 @@ public class HostService extends Service implements CallServer.Host {
             if (relayResult != null) j.put("relay", relayResult);
             synchronized (kioskLog) {
                 kioskLog.addFirst(j);
-                while (kioskLog.size() > 10) kioskLog.removeLast();
+                while (kioskLog.size() > 50) kioskLog.removeLast();
             }
         } catch (Exception ignored) {
+        }
+    }
+
+    /** 수신 기록 한 줄 남김 (연결·에러 포함 — 씹힘 원인 진단용) */
+    private void rxLog(String line) {
+        String t = new java.text.SimpleDateFormat("MM-dd HH:mm:ss", Locale.KOREA).format(System.currentTimeMillis());
+        synchronized (rxLog) {
+            rxLog.addFirst(t + "  " + line);
+            while (rxLog.size() > 50) rxLog.removeLast();
         }
     }
 

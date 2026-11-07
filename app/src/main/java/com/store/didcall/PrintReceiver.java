@@ -22,6 +22,8 @@ final class PrintReceiver {
         void onReceipt(byte[] raw, String from, String relayResult);
         /** 중계할 주방 프린터 주소 "ip:port" (없으면 null) */
         String relayTarget();
+        /** 수신 기록 한 줄 (진단용: 연결·에러 전부 남김) */
+        void onLog(String line);
     }
 
     private final Listener listener;
@@ -55,6 +57,7 @@ final class PrintReceiver {
                 server.bind(new InetSocketAddress(PORT));
                 while (running) {
                     final Socket s = server.accept();
+                    log("연결: " + s.getInetAddress().getHostAddress() + " (대기 중이던 접속 수신)");
                     new Thread(() -> handle(s), "didcall-print").start();
                 }
             } catch (Exception e) {
@@ -70,6 +73,8 @@ final class PrintReceiver {
         String from = s.getInetAddress().getHostAddress();
         Socket relay = null;
         String relayResult = null;
+        long got = 0;
+        int sheets = 0;
         try {
             s.setSoTimeout(1500);
             InputStream in = s.getInputStream();
@@ -117,6 +122,7 @@ final class PrintReceiver {
                 }
                 if (r < 0) break;
                 idleSince = System.currentTimeMillis();
+                got += r;
                 // 자르기 명령(ESC i, ESC m, GS V)·폼피드(0x0C)가 오면 거기서 한 장을 끊음 → 붙어 온 다음 주문을 놓치지 않게
                 int start = 0;
                 for (int i = 0; i < r; i++) {
@@ -127,7 +133,7 @@ final class PrintReceiver {
                     prev = c;
                     if (cut) {
                         job.write(buf, start, i + 1 - start);
-                        emit(job, from, relayResult);
+                        if (emit(job, from, relayResult)) sheets++;
                         start = i + 1;
                     }
                 }
@@ -146,20 +152,27 @@ final class PrintReceiver {
                     back.flush();
                 }
             }
-            emit(job, from, relayResult);
-        } catch (Exception ignored) {
+            if (emit(job, from, relayResult)) sheets++;
+            log(from + " 끝: 총 " + got + "바이트, " + sheets + "장 접수");
+        } catch (Exception e) {
+            log(from + " 끊김: " + got + "바이트 받던 중 오류 — " + e);
         } finally {
             try { s.close(); } catch (Exception ignored) {}
             try { if (relay != null) relay.close(); } catch (Exception ignored) {}
         }
     }
 
-    /** 모인 한 장을 넘기고 비움. 자르기 명령만 있고 글자가 없는 조각은 버림 */
-    private void emit(ByteArrayOutputStream job, String from, String relayResult) {
-        if (job.size() == 0) return;
+    /** 모인 한 장을 넘기고 비움. 자르기 명령만 있고 글자가 없는 조각은 버림. @return 실제 접수되면 true */
+    private boolean emit(ByteArrayOutputStream job, String from, String relayResult) {
+        if (job.size() == 0) return false;
         byte[] raw = job.toByteArray();
         job.reset();
-        if (new String(Receipt.strip(raw)).trim().isEmpty()) return;
+        if (new String(Receipt.strip(raw)).trim().isEmpty()) return false;
         listener.onReceipt(raw, from, relayResult);
+        return true;
+    }
+
+    private void log(String s) {
+        try { listener.onLog(s); } catch (Exception ignored) {}
     }
 }

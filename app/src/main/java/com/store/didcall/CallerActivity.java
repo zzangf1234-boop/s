@@ -1210,6 +1210,16 @@ public class CallerActivity extends Activity implements VoiceRecorder.Host {
         if (arr != null && arr.length() > 0)
             box.addView(Ui.text(this, "🔍 줄을 누르면 그 주문서 내용과 원본 파일을 볼 수 있습니다", 12, Ui.MUTED, false));
 
+        // 수신 기록(진단): 연결·끊김·오류 — 주문이 씹힐 때 원인 판별용
+        JSONArray rx = last.optJSONArray("rxLog");
+        if (rx != null && rx.length() > 0) {
+            box.addView(Ui.text(this, "\n수신 기록 (연결·오류 전부)", 13, Ui.TEXT, true));
+            for (int i = 0; i < rx.length(); i++) {
+                box.addView(Ui.text(this, rx.optString(i), 12, Ui.MUTED, false));
+            }
+            box.addView(Ui.text(this, "주문서 기록이 없는데 '연결:' 줄도 없으면 키오스크가 보내지 못한 것입니다", 12, Ui.MUTED, false));
+        }
+
         android.widget.ScrollView sv = new android.widget.ScrollView(this);
         sv.addView(box);
         new AlertDialog.Builder(this, R.style.DidDialog)
