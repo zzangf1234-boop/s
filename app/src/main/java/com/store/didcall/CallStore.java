@@ -118,6 +118,12 @@ final class CallStore {
     }
 
     synchronized String current() {
+        // keepMinutes 가 지났으면 현재 호출도 지운 것으로 보임 (화면에서 번호가 사라짐)
+        if (!current.isEmpty() && keepMinutes > 0
+                && System.currentTimeMillis() - currentAt > keepMinutes * 60_000L) {
+            pushCurrentToHistory();
+            current = "";
+        }
         return current;
     }
 
