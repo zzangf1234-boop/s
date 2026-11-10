@@ -46,6 +46,12 @@ final class DisplayPage {
         "body.kiosk #secWait{display:flex;flex:1;border-top:.3vh solid var(--line);margin-top:1.5vh;padding-top:1vh}\n" +
         "body.kiosk #hist{display:grid;grid-template-columns:1fr 1fr;grid-auto-rows:1fr}\n" +
         "body.kiosk #hist div{display:flex!important;opacity:1!important;font-size:5.5vh}\n" +
+        "/* ── 전체화면 전환: 현재 호출·조리중이 모두 없으면 번호 칸을 접어 이미지가 화면을 꽉 채움 (부드러운 애니메이션) ── */\n" +
+        ".left{flex-grow:84;transition:flex-grow .6s ease}\n" +
+        ".right{flex-grow:16;transition:flex-grow .6s ease}\n" +
+        "body.full .right{flex-grow:0}\n" +
+        "body.full .left{margin-right:0}\n" +
+        "body.full #logoBox{opacity:0;transition:opacity .6s}\n" +
         "#dot{position:absolute;top:1.2vh;right:1.2vh;width:1.4vh;height:1.4vh;border-radius:50%;background:#666}\n" +
         "#dot.ok{background:#4cd964}\n" +
         "#dot.bad{background:#ff5a5a;animation:blink 1s infinite}\n" +
@@ -160,11 +166,11 @@ final class DisplayPage {
         "var chimeBuf=null,chimeKey='',voiceSrc=null,playId=0;\n" +
         "function loadBuf(url){return fetch(url,{cache:'no-store'}).then(function(r){if(!r.ok)throw 0;return r.arrayBuffer()}).then(function(a){return new Promise(function(ok,no){ac.decodeAudioData(a,ok,no)})})}\n" +
         "function playBuf(buf,done){var src=ac.createBufferSource();src.buffer=buf;src.connect(ac.destination);src.onended=done||null;src.start();return src}\n" +
-        "function chime(){if(!ac||ac.state!=='running')return;var key=(S.chime||'')+'/'+(S.chimeVer||0);if(chimeBuf&&key===chimeKey){playBuf(chimeBuf);return}\n" +
+        "function chime(){if(!ac||ac.state!=='running')return;var key=(S.chime||'')+'/'+(S.chimeVer||0);if(chimeBuf&&key===chimeKey){playBuf(chimeBuf);return}\n";
+    private static final String P1 =
         " loadBuf('/chime?v='+encodeURIComponent(key)).then(function(b){chimeBuf=b;chimeKey=key;playBuf(b)}).catch(synthChime)}\n" +
         "function stopVoice(){playId++;try{if(voiceSrc){voiceSrc.onended=null;voiceSrc.stop()}}catch(e){}voiceSrc=null;if('speechSynthesis' in window)speechSynthesis.cancel()}\n" +
-        "function playVoice(url,text,rep){if(rep<=0)return;var id=++playId;\n";
-    private static final String P1 =
+        "function playVoice(url,text,rep){if(rep<=0)return;var id=++playId;\n" +
         " if(!S.voice||!ac||ac.state!=='running'){speak(text,rep);return}\n" +
         " loadBuf(url).then(function(buf){if(id!==playId)return;(function play(k){if(k<=0||id!==playId)return;voiceSrc=playBuf(buf,function(){if(id===playId)speakT=setTimeout(function(){play(k-1)},800)})})(rep)}).catch(function(){if(id===playId)speak(text,rep)})}\n" +
         "function pickVoice(){if(!('speechSynthesis' in window))return;var v=speechSynthesis.getVoices().filter(function(x){return /^ko/i.test(x.lang)});voice=v.filter(function(x){return /Natural|Online/i.test(x.name)})[0]||v[0]||null}\n" +
@@ -196,6 +202,8 @@ final class DisplayPage {
         "function render(s){\n" +
         " document.body.classList.toggle('calm',s.theme==='calm');\n" +
         " var kiosk=!!s.kioskOn;document.body.classList.toggle('kiosk',kiosk);\n" +
+        " // 전체화면: 현재 호출·조리중이 모두 없을 때만 이미지 영역이 화면을 꽉 채움 (호출되면 다시 분할로)\n" +
+        " document.body.classList.toggle('full',!(s.current&&(s.current+'').trim())&&!(s.waiting||[]).length);\n" +
         " applyLayout(s.layout,!!s.logo);applyLogo(s);applyColors(s.colors);\n" +
         " $('histLbl').textContent='최근 호출';\n" +
         " var h=s.history||[],d=$('hist').children;\n" +
@@ -299,5 +307,5 @@ final class DisplayPage {
         "})();\n" +
         "</script></body></html>\n";
 
-    static final String HTML = new StringBuilder(22799).append(P0).append(P1).toString();
+    static final String HTML = new StringBuilder(23253).append(P0).append(P1).toString();
 }

@@ -39,6 +39,12 @@ body.kiosk #secHist{flex:1;border-top:0;margin-top:0;padding-top:0}
 body.kiosk #secWait{display:flex;flex:1;border-top:.3vh solid var(--line);margin-top:1.5vh;padding-top:1vh}
 body.kiosk #hist{display:grid;grid-template-columns:1fr 1fr;grid-auto-rows:1fr}
 body.kiosk #hist div{display:flex!important;opacity:1!important;font-size:5.5vh}
+/* ── 전체화면 전환: 현재 호출·조리중이 모두 없으면 번호 칸을 접어 이미지가 화면을 꽉 채움 (부드러운 애니메이션) ── */
+.left{flex-grow:84;transition:flex-grow .6s ease}
+.right{flex-grow:16;transition:flex-grow .6s ease}
+body.full .right{flex-grow:0}
+body.full .left{margin-right:0}
+body.full #logoBox{opacity:0;transition:opacity .6s}
 #dot{position:absolute;top:1.2vh;right:1.2vh;width:1.4vh;height:1.4vh;border-radius:50%;background:#666}
 #dot.ok{background:#4cd964}
 #dot.bad{background:#ff5a5a;animation:blink 1s infinite}
@@ -192,6 +198,8 @@ function portrait(){return window.innerHeight>window.innerWidth}
 function render(s){
  document.body.classList.toggle('calm',s.theme==='calm');
  var kiosk=!!s.kioskOn;document.body.classList.toggle('kiosk',kiosk);
+ // 전체화면: 현재 호출·조리중이 모두 없을 때만 이미지 영역이 화면을 꽉 채움 (호출되면 다시 분할로)
+ document.body.classList.toggle('full',!(s.current&&(s.current+'').trim())&&!(s.waiting||[]).length);
  applyLayout(s.layout,!!s.logo);applyLogo(s);applyColors(s.colors);
  $('histLbl').textContent='최근 호출';
  var h=s.history||[],d=$('hist').children;
