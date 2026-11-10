@@ -121,10 +121,20 @@ final class CallStore {
         // keepMinutes 가 지났으면 현재 호출도 지운 것으로 보임 (화면에서 번호가 사라짐)
         if (!current.isEmpty() && keepMinutes > 0
                 && System.currentTimeMillis() - currentAt > keepMinutes * 60_000L) {
-            pushCurrentToHistory();
+            expireCurrentToHistory();
             current = "";
         }
         return current;
+    }
+
+    /** 만료로 지워질 때는 최근호출에 "지금 시각"으로 남겨 다시 keepMinutes 동안 보이게
+     *  (호출 시각 그대로 옮기면 이미 5분이 지나 즉시 삭제돼 최근호출에 안 뜨는 문제) */
+    private void expireCurrentToHistory() {
+        List<String> mem = Net.members(current);
+        for (int i = mem.size() - 1; i >= 0; i--) {
+            remove(mem.get(i));
+            history.addFirst(new Entry(mem.get(i), System.currentTimeMillis()));
+        }
     }
 
     synchronized long seq() {
