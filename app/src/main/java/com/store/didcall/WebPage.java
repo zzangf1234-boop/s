@@ -129,6 +129,10 @@ final class WebPage {
         "<div class=\"two\"><button class=\"sm\" onclick=\"layPreset('basic')\">기본형</button><button class=\"sm\" onclick=\"layPreset('flip')\">좌우 반전형</button></div>\n" +
         "<div class=\"two\"><button class=\"sm\" onclick=\"layPreset('big')\">번호 크게형</button><button class=\"sm\" onclick=\"layReset()\">처음 상태로</button></div>\n" +
         "<p class=\"note\">키오스크 연동을 쓰면 '조리중' 칸을 켜세요. 저장하면 TV·PC 화면에 바로 반영됩니다.</p>\n" +
+        "<p class=\"note\" style=\"margin-top:14px\"><b>이미지 전체화면</b> — 호출할 번호도 조리중 주문도 없을 때 이미지가 화면을 꽉 채우는 기능</p>\n" +
+        "<label class=\"ck\"><input type=\"checkbox\" id=\"fullOn\">사용</label>\n" +
+        "전체화면 유지 시간 (초, 0이면 번호가 뜰 때까지 계속)<input id=\"fullSec\" type=\"number\" min=\"0\" max=\"600\" placeholder=\"0\">\n" +
+        "<div class=\"two\"><button class=\"sm\" onclick=\"saveFull()\">저장</button><button class=\"sm\" onclick=\"resetFull()\">기본값 (사용·계속)</button></div>\n" +
         "<div class=\"two\"><button class=\"sm\" onclick=\"$('logoFile').click()\">로고 그림 올리기</button><button class=\"sm\" onclick=\"clearLogo()\">로고 지우기</button></div>\n" +
         "<input type=\"file\" id=\"logoFile\" accept=\"image/png,image/jpeg,image/webp,image/gif\" style=\"display:none\" onchange=\"uploadLogo(this.files[0]);this.value=''\">\n" +
         "<p class=\"note\" id=\"logoNote\"></p>\n" +
@@ -143,14 +147,14 @@ final class WebPage {
         "<label class=\"ck\">글자 (이름·라벨) <input type=\"color\" id=\"col_label\" style=\"width:44px;height:32px;margin:0 0 0 auto;padding:0\"></label>\n" +
         "<label class=\"ck\">강조 번호 (방금 부른 번호) <input type=\"color\" id=\"col_cur\" style=\"width:44px;height:32px;margin:0 0 0 auto;padding:0\"></label>\n" +
         "<label class=\"ck\">최근·조리중 번호 <input type=\"color\" id=\"col_num\" style=\"width:44px;height:32px;margin:0 0 0 auto;padding:0\"></label>\n" +
-        "<label class=\"ck\">호출 팝업 배경 <input type=\"color\" id=\"col_card\" style=\"width:44px;height:32px;margin:0 0 0 auto;padding:0\"></label>\n" +
+        "<label class=\"ck\">호출 팝업 배경 <input type=\"color\" id=\"col_card\" style=\"width:44px;height:32px;margin:0 0 0 auto;padding:0\"></label>\n";
+    private static final String P1 =
         "<div class=\"two\"><button class=\"sm\" onclick=\"saveColors()\">저장</button><button class=\"sm\" onclick=\"resetColors()\">기본 색으로</button></div>\n" +
         "</details>\n" +
         "<details id=\"keybox\"><summary>키 설정 (키패드·키보드)</summary>\n" +
         "<p class=\"note\">[키 지정]을 누른 뒤 키보드·키패드에서 원하는 키를 누르세요. 숫자 키는 항상 번호 입력입니다. 호출기 앱과 같은 설정을 사용합니다.</p>\n" +
         "<div id=\"keyrows\"></div>\n" +
-        "<button onclick=\"presetKeys(KEY_TENKEY)\">텐키형 기본값 (. 한 칸 지우기)</button>\n";
-    private static final String P1 =
+        "<button onclick=\"presetKeys(KEY_TENKEY)\">텐키형 기본값 (. 한 칸 지우기)</button>\n" +
         "<button onclick=\"presetKeys(KEY_BACKSPACE)\">백스페이스형 기본값 (← 한 칸 지우기)</button>\n" +
         "</details>\n" +
         "<details id=\"kioskbox\"><summary>🧾 키오스크 주문 연동 (조리중)</summary>\n" +
@@ -203,6 +207,7 @@ final class WebPage {
         " if(s.authed)$('authbar').classList.remove('show');\n" +
         " $('closedNow').textContent=s.closed?'🌙 마감 표시 중':'영업 중';$('closeNowBtn').textContent=s.closed?'마감 표시 끄기':'지금 마감 표시';\n" +
         " if(!loaded){$('tts').value=s.tts;$('sub').value=s.sub;$('rep').value=s.repeat;$('slide').value=s.slide;$('popup').value=s.popup;$('fit').value=s.fit;$('keep').value=s.keep;\n" +
+        "  $('fullOn').checked=s.fullOn!==false;$('fullSec').value=s.fullSec||0;\n" +
         "  $('theme').value=s.theme||'vivid';$('videoSound').checked=!!s.videoSound;$('closeOn').checked=!!s.closeOn;$('open').value=s.open||'09:00';$('close').value=s.close||'22:00';$('closeMsg').value=s.closeMsg||'';\n" +
         "  $('rate').value=s.rate||95;$('rateV').textContent=(s.rate||95)+'%';$('pitch').value=s.pitch||100;$('pitchV').textContent=(s.pitch||100)+'%';$('voiceMode').value=s.voiceMode||'tts';\n" +
         "  $('kioskOn').checked=!!s.kioskOn;$('relay').value=s.relay||'';$('orderLabel').value=s.orderLabel||'주문번호';loaded=true}\n" +
@@ -253,12 +258,12 @@ final class WebPage {
         " var en=$('ttsEngine');en.innerHTML='';en.add(new Option('기본 음성 엔진 (폰 설정 따름)',''));(d.engines||[]).forEach(function(e){en.add(new Option(e.label,e.name))});en.value=S.ttsEngine||'';\n" +
         " var vo=$('voiceName');vo.innerHTML='';vo.add(new Option('기본 목소리',''));(d.voices||[]).forEach(function(x){vo.add(new Option(x.label,x.name))});vo.value=S.voiceName||'';\n" +
         " var vm=$('voiceMode');while(vm.options.length>2)vm.remove(2);(d.packs||[]).forEach(function(p){vm.add(new Option(p.label+' (녹음된 목소리 · 1~999번)',p.mode),1)});vm.value=S.voiceMode||'tts';\n" +
-        " var ph=$('packPhrase');ph.innerHTML='';(d.phrases||[]).forEach(function(p){ph.add(new Option(p.label,p.name))});ph.value=S.packPhrase||'p_food';\n" +
+        " var ph=$('packPhrase');ph.innerHTML='';(d.phrases||[]).forEach(function(p){ph.add(new Option(p.label,p.name))});ph.value=S.packPhrase||'p_food';\n";
+    private static final String P2 =
         " for(var i=0;i<vm.options.length;i++)if(vm.options[i].value==='rec')vm.options[i].disabled=!S.recReady;voiceModeUi()}).catch(function(){})}\n" +
         "// 녹음된 목소리(승아 등)는 문장만 고르고, 기계 음성 설정(엔진·목소리·속도·높낮이)은 숨김\n" +
         "function voiceModeUi(){var pk=/^pack:/.test($('voiceMode').value);$('packbox').style.display=pk?'':'none';$('ttsbox').style.display=pk?'none':''}\n" +
-        "$('soundbox').addEventListener('toggle',function(){if(this.open)loadVoices()});\n";
-    private static final String P2 =
+        "$('soundbox').addEventListener('toggle',function(){if(this.open)loadVoices()});\n" +
         "function previewVoice(){var a=new Audio(withTok('/voice/preview?n=51&voice='+encodeURIComponent($('voiceName').value)+'&rate='+$('rate').value+'&pitch='+$('pitch').value+'&mode='+encodeURIComponent($('voiceMode').value)+'&phrase='+$('packPhrase').value));msg('음성을 만드는 중…');a.onplaying=function(){msg('▶ 재생 중')};a.onerror=function(){msg('미리 듣기를 할 수 없습니다 (허용·음성 엔진 확인)')};a.play().catch(function(){})}\n" +
         "function saveSound(){var engineChanged=$('ttsEngine').value!==(S.ttsEngine||'');api('/config?'+['chime','voiceMode','ttsEngine','voiceName','rate','pitch','packPhrase'].map(q).join('&')).then(function(s){if(s&&s.ok){msg(engineChanged?'저장됨 · 음성 엔진이 바뀌어 목소리 목록을 다시 불러옵니다':'알림음·목소리 저장됨');if(engineChanged)setTimeout(loadVoices,2500)}})}\n" +
         "async function uploadChime(f){if(!f)return;if(f.size>5*1048576){msg('알림음 파일은 5MB 이하만');return}msg('알림음 보내는 중…');var s=await post('/chime/upload',f);if(s.auth){requestAuth();return}\n" +
@@ -315,6 +320,9 @@ final class WebPage {
         "function layPreset(name){LAY[layTab]=layFrom(layTab,name);layRender()}\n" +
         "function layReset(){api('/config?layout=').then(function(s){if(s&&s.ok!==false){layLoaded=false;msg('기본 배치로 되돌렸습니다')}})}\n" +
         "function saveLayout(){api('/config?layout='+encodeURIComponent(JSON.stringify({l:LAY.l,p:LAY.p}))).then(okMsg('화면 배치 저장됨'))}\n" +
+        "// ── 이미지 전체화면 (on/off + 유지 시간) ──\n" +
+        "function saveFull(){api('/config?fullOn='+($('fullOn').checked?1:0)+'&fullSec='+encodeURIComponent($('fullSec').value||'0')).then(okMsg('전체화면 설정 저장됨'))}\n" +
+        "function resetFull(){api('/config?fullOn=1&fullSec=0').then(function(s){if(s&&s.ok!==false){$('fullOn').checked=true;$('fullSec').value=0;msg('기본값으로 되돌렸습니다')}})}\n" +
         "function layInit(){var c=$('laycanvas');\n" +
         " c.addEventListener('pointerdown',function(e){var d=e.target.closest?e.target.closest('.lb'):null;if(!d)return;var b=LAY[layTab][d.dataset.k],r=c.getBoundingClientRect();\n" +
         "  layDrag={k:d.dataset.k,rs:e.target.tagName==='I',sx:e.clientX,sy:e.clientY,b0:{x:b.x,y:b.y,w:b.w,h:b.h},W:r.width,H:r.height};\n" +
@@ -365,5 +373,5 @@ final class WebPage {
         "api('/status');setInterval(function(){fetch(withTok('/status'),{cache:'no-store'}).then(function(r){return r.json()}).then(render).catch(function(){})},3000);\n" +
         "</script></body></html>\n";
 
-    static final String HTML = new StringBuilder(34307).append(P0).append(P1).append(P2).toString();
+    static final String HTML = new StringBuilder(35131).append(P0).append(P1).append(P2).toString();
 }

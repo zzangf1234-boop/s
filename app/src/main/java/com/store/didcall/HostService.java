@@ -67,6 +67,8 @@ public class HostService extends Service implements CallServer.Host {
     static final String K_COLORS = "colors";
     /** 로고 그림이 바뀔 때마다 새 번호 (화면이 새 그림을 다시 받도록) */
     static final String K_LOGO_VER = "logoVer";
+    /** 이미지 전체화면: 사용 여부(fullOn)와 호출·조리중 없을 때 전체화면 유지 시간(초, 0이면 번호가 뜰 때까지) */
+    static final String K_FULL_ON = "fullOn", K_FULL_SEC = "fullSec";
     static final String[] LOGO_EXTS = {"png", "jpg", "webp", "gif"};
     static final String[] COLOR_KEYS = {"bg", "panel", "label", "cur", "num", "card"};
     private static final String K_CLOSED = "closed", K_CLOSE_SEQ = "closeSeq", K_STATE = "callState", K_AUTH = "authDevices";
@@ -412,6 +414,8 @@ public class HostService extends Service implements CallServer.Host {
         o.put("relay", prefs.getString(K_RELAY, ""));
         o.put("orderLabel", prefs.getString(K_ORDER_LABEL, "주문번호"));
         o.put("layout", layoutJson());
+        o.put("fullOn", prefs.getBoolean(K_FULL_ON, true));
+        o.put("fullSec", prefs.getInt(K_FULL_SEC, 0));
         o.put("logo", logoFile() != null);
         o.put("logoVer", logoVersion());
         o.put("colors", colorsJson());
@@ -436,6 +440,8 @@ public class HostService extends Service implements CallServer.Host {
         if (q.containsKey("popup")) e.putInt(K_POPUP, clampInt(q.get("popup"), popupSeconds(), 3, 60));
         if (q.containsKey("fit")) e.putString(K_FIT, "cover".equals(q.get("fit")) ? "cover" : "contain");
         if (q.containsKey("keep")) e.putInt(K_KEEP, clampInt(q.get("keep"), keepMinutes(), 0, 120));
+        if (q.containsKey("fullOn")) e.putBoolean(K_FULL_ON, !"0".equals(q.get("fullOn")));
+        if (q.containsKey("fullSec")) e.putInt(K_FULL_SEC, clampInt(q.get("fullSec"), prefs.getInt(K_FULL_SEC, 0), 0, 600));
         if (q.containsKey("keys")) {
             String k = KeyMap.sanitize(q.get("keys"));
             if (k != null) e.putString(KeyMap.K_KEYS, k);

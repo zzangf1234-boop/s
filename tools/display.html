@@ -151,7 +151,7 @@ if(ROT===90||ROT===270){
  document.body.appendChild(f);
  window.next=function(){try{f.contentWindow.next()}catch(e){}};
 } else (function(){
-var S={},seq=null,closeSeq=null,items=[],mediaVer=null,idx=-1,front='ia',slideT=0,hideT=0,flashT=0,ac=null,voice=null,fails=0,speakT=0,blackT=0;
+var S={},seq=null,closeSeq=null,items=[],mediaVer=null,idx=-1,front='ia',slideT=0,hideT=0,flashT=0,ac=null,voice=null,fails=0,speakT=0,blackT=0,fullT=0;
 function $(i){return document.getElementById(i)}
 
 // ── 소리: 호출기 폰이 만든 알림음·음성 파일을 그대로 재생 (TV·PC 모두 같은 소리) ──
@@ -197,8 +197,12 @@ function portrait(){return window.innerHeight>window.innerWidth}
 function render(s){
  document.body.classList.toggle('calm',s.theme==='calm');
  var kiosk=!!s.kioskOn;document.body.classList.toggle('kiosk',kiosk);
- // 전체화면: 현재 호출·조리중이 모두 없을 때만 이미지 영역이 화면을 꽉 채움 (호출되면 다시 분할로)
- document.body.classList.toggle('full',!(s.current&&(s.current+'').trim())&&!(s.waiting||[]).length);
+ // 전체화면: 기능 켜짐 + 현재 호출·조리중 모두 없을 때만. fullSec(초)이 있으면 그 시간 지나면 분할 복귀
+ var wantFull=s.fullOn!==false&&!(s.current&&(s.current+'').trim())&&!(s.waiting||[]).length;
+ clearTimeout(fullT);
+ if(wantFull&&!document.body.classList.contains('full')&&(s.fullSec||0)>0)fullT=setTimeout(function(){document.body.classList.remove('full')},s.fullSec*1000);
+ if((s.fullSec||0)<=0&&wantFull)clearTimeout(fullT); // 0이면 번호가 뜰 때까지 유지
+ document.body.classList.toggle('full',wantFull);
  applyLayout(s.layout,!!s.logo);applyLogo(s);applyColors(s.colors);
  $('histLbl').textContent='최근 호출';
  var h=s.history||[],d=$('hist').children;
