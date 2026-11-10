@@ -157,7 +157,7 @@ final class DisplayPage {
         " document.body.appendChild(f);\n" +
         " window.next=function(){try{f.contentWindow.next()}catch(e){}};\n" +
         "} else (function(){\n" +
-        "var S={},seq=null,closeSeq=null,items=[],mediaVer=null,idx=-1,front='ia',slideT=0,hideT=0,flashT=0,ac=null,voice=null,fails=0,speakT=0,blackT=0,fullT=0;\n" +
+        "var S={},seq=null,closeSeq=null,items=[],mediaVer=null,idx=-1,front='ia',slideT=0,hideT=0,flashT=0,ac=null,voice=null,fails=0,speakT=0,blackT=0,fullT=0,emptySince=0;\n" +
         "function $(i){return document.getElementById(i)}\n" +
         "// ── 소리: 호출기 폰이 만든 알림음·음성 파일을 그대로 재생 (TV·PC 모두 같은 소리) ──\n" +
         "function initAudio(){try{ac=ac||new (window.AudioContext||window.webkitAudioContext)();if(ac.state!=='running')ac.resume()}catch(e){}}\n" +
@@ -201,12 +201,11 @@ final class DisplayPage {
         "function render(s){\n" +
         " document.body.classList.toggle('calm',s.theme==='calm');\n" +
         " var kiosk=!!s.kioskOn;document.body.classList.toggle('kiosk',kiosk);\n" +
-        " // 전체화면: 기능 켜짐 + 현재 호출·조리중 모두 없을 때만. fullSec(초)이 있으면 그 시간 지나면 분할 복귀\n" +
-        " var wantFull=s.fullOn!==false&&!(s.current&&(s.current+'').trim())&&!(s.waiting||[]).length;\n" +
-        " clearTimeout(fullT);\n" +
-        " if(wantFull&&!document.body.classList.contains('full')&&(s.fullSec||0)>0)fullT=setTimeout(function(){document.body.classList.remove('full')},s.fullSec*1000);\n" +
-        " if((s.fullSec||0)<=0&&wantFull)clearTimeout(fullT); // 0이면 번호가 뜰 때까지 유지\n" +
-        " document.body.classList.toggle('full',wantFull);\n" +
+        " // 전체화면: 기능 켜짐 + 현재 호출·조리중 모두 없는 상태가 fullSec(초) 지속되면 접힘. 번호가 뜨거나 주문이 들어오면 즉시 분할 복귀\n" +
+        " var empty=!(s.current&&(s.current+'').trim())&&!(s.waiting||[]).length;\n" +
+        " if(!empty||s.fullOn===false)emptySince=0;\n" +
+        " else if(!emptySince)emptySince=Date.now();\n" +
+        " document.body.classList.toggle('full',empty&&(emptySince>0)&&((s.fullSec||0)<=0||Date.now()-emptySince>=(s.fullSec||0)*1000));\n" +
         " applyLayout(s.layout,!!s.logo);applyLogo(s);applyColors(s.colors);\n" +
         " $('histLbl').textContent='최근 호출';\n" +
         " var h=s.history||[],d=$('hist').children;\n" +
@@ -310,5 +309,5 @@ final class DisplayPage {
         "})();\n" +
         "</script></body></html>\n";
 
-    static final String HTML = new StringBuilder(23802).append(P0).append(P1).toString();
+    static final String HTML = new StringBuilder(23720).append(P0).append(P1).toString();
 }

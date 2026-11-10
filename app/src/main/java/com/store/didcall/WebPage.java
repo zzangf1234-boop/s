@@ -131,8 +131,8 @@ final class WebPage {
         "<p class=\"note\">키오스크 연동을 쓰면 '조리중' 칸을 켜세요. 저장하면 TV·PC 화면에 바로 반영됩니다.</p>\n" +
         "<p class=\"note\" style=\"margin-top:14px\"><b>이미지 전체화면</b> — 호출할 번호도 조리중 주문도 없을 때 이미지가 화면을 꽉 채우는 기능</p>\n" +
         "<label class=\"ck\"><input type=\"checkbox\" id=\"fullOn\">사용</label>\n" +
-        "전체화면 유지 시간 (초, 0이면 번호가 뜰 때까지 계속)<input id=\"fullSec\" type=\"number\" min=\"0\" max=\"600\" placeholder=\"0\">\n" +
-        "<div class=\"two\"><button class=\"sm\" onclick=\"saveFull()\">저장</button><button class=\"sm\" onclick=\"resetFull()\">기본값 (사용·계속)</button></div>\n" +
+        "번호가 없어도 전체화면까지 기다릴 시간 (초, 0이면 바로)<input id=\"fullSec\" type=\"number\" min=\"0\" max=\"600\" placeholder=\"0\">\n" +
+        "<div class=\"two\"><button class=\"sm\" onclick=\"saveFull()\">저장</button><button class=\"sm\" onclick=\"resetFull()\">기본값 (사용·바로)</button></div>\n" +
         "<div class=\"two\"><button class=\"sm\" onclick=\"$('logoFile').click()\">로고 그림 올리기</button><button class=\"sm\" onclick=\"clearLogo()\">로고 지우기</button></div>\n" +
         "<input type=\"file\" id=\"logoFile\" accept=\"image/png,image/jpeg,image/webp,image/gif\" style=\"display:none\" onchange=\"uploadLogo(this.files[0]);this.value=''\">\n" +
         "<p class=\"note\" id=\"logoNote\"></p>\n" +
@@ -320,7 +320,7 @@ final class WebPage {
         "function layPreset(name){LAY[layTab]=layFrom(layTab,name);layRender()}\n" +
         "function layReset(){api('/config?layout=').then(function(s){if(s&&s.ok!==false){layLoaded=false;msg('기본 배치로 되돌렸습니다')}})}\n" +
         "function saveLayout(){api('/config?layout='+encodeURIComponent(JSON.stringify({l:LAY.l,p:LAY.p}))).then(okMsg('화면 배치 저장됨'))}\n" +
-        "// ── 이미지 전체화면 (on/off + 유지 시간) ──\n" +
+        "// ── 이미지 전체화면 (on/off + 전까지 대기 시간) ──\n" +
         "function saveFull(){api('/config?fullOn='+($('fullOn').checked?1:0)+'&fullSec='+encodeURIComponent($('fullSec').value||'0')).then(okMsg('전체화면 설정 저장됨'))}\n" +
         "function resetFull(){api('/config?fullOn=1&fullSec=0').then(function(s){if(s&&s.ok!==false){$('fullOn').checked=true;$('fullSec').value=0;msg('기본값으로 되돌렸습니다')}})}\n" +
         "function layInit(){var c=$('laycanvas');\n" +
@@ -373,5 +373,5 @@ final class WebPage {
         "api('/status');setInterval(function(){fetch(withTok('/status'),{cache:'no-store'}).then(function(r){return r.json()}).then(render).catch(function(){})},3000);\n" +
         "</script></body></html>\n";
 
-    static final String HTML = new StringBuilder(35131).append(P0).append(P1).append(P2).toString();
+    static final String HTML = new StringBuilder(35136).append(P0).append(P1).append(P2).toString();
 }
