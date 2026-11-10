@@ -40,10 +40,9 @@ body.kiosk #secWait{display:flex;flex:1;border-top:.3vh solid var(--line);margin
 body.kiosk #hist{display:grid;grid-template-columns:1fr 1fr;grid-auto-rows:1fr}
 body.kiosk #hist div{display:flex!important;opacity:1!important;font-size:5.5vh}
 /* ── 전체화면 전환: 현재 호출·조리중이 모두 없으면 번호 칸을 접어 이미지가 화면을 꽉 채움 (부드러운 애니메이션) ── */
-.left{flex-grow:84;transition:flex-grow .6s ease}
-.right{flex-grow:16;transition:flex-grow .6s ease}
-body.full .right{flex-grow:0}
-body.full .left{margin-right:0}
+/* flex-grow 단축속성(flex:16)이 미디어쿼리에서 덮어써지는 걸 피하려고 !important + width 전환을 함께 사용 */
+body.full .right{flex-grow:0!important;flex-shrink:1!important;flex-basis:0%!important;min-width:0!important;padding-left:0!important;padding-right:0!important;border-radius:0;overflow:hidden;transition:flex-grow .6s ease,flex-basis .6s ease,padding .6s ease}
+body.full .left{margin-right:0;transition:margin .6s ease}
 body.full #logoBox{opacity:0;transition:opacity .6s}
 #dot{position:absolute;top:1.2vh;right:1.2vh;width:1.4vh;height:1.4vh;border-radius:50%;background:#666}
 #dot.ok{background:#4cd964}

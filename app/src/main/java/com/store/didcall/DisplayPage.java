@@ -47,10 +47,9 @@ final class DisplayPage {
         "body.kiosk #hist{display:grid;grid-template-columns:1fr 1fr;grid-auto-rows:1fr}\n" +
         "body.kiosk #hist div{display:flex!important;opacity:1!important;font-size:5.5vh}\n" +
         "/* ── 전체화면 전환: 현재 호출·조리중이 모두 없으면 번호 칸을 접어 이미지가 화면을 꽉 채움 (부드러운 애니메이션) ── */\n" +
-        ".left{flex-grow:84;transition:flex-grow .6s ease}\n" +
-        ".right{flex-grow:16;transition:flex-grow .6s ease}\n" +
-        "body.full .right{flex-grow:0}\n" +
-        "body.full .left{margin-right:0}\n" +
+        "/* flex-grow 단축속성(flex:16)이 미디어쿼리에서 덮어써지는 걸 피하려고 !important + width 전환을 함께 사용 */\n" +
+        "body.full .right{flex-grow:0!important;flex-shrink:1!important;flex-basis:0%!important;min-width:0!important;padding-left:0!important;padding-right:0!important;border-radius:0;overflow:hidden;transition:flex-grow .6s ease,flex-basis .6s ease,padding .6s ease}\n" +
+        "body.full .left{margin-right:0;transition:margin .6s ease}\n" +
         "body.full #logoBox{opacity:0;transition:opacity .6s}\n" +
         "#dot{position:absolute;top:1.2vh;right:1.2vh;width:1.4vh;height:1.4vh;border-radius:50%;background:#666}\n" +
         "#dot.ok{background:#4cd964}\n" +
@@ -165,9 +164,9 @@ final class DisplayPage {
         "function synthChime(){var t0=ac.currentTime+.05;[[659.25,0],[523.25,.6]].forEach(function(n){[[1,.7],[2,.2],[3,.05]].forEach(function(h){var o=ac.createOscillator(),g=ac.createGain(),t=t0+n[1];o.frequency.value=n[0]*h[0];g.gain.setValueAtTime(0,t);g.gain.linearRampToValueAtTime(h[1]*.6,t+.01);g.gain.exponentialRampToValueAtTime(.0001,t+1.4);o.connect(g);g.connect(ac.destination);o.start(t);o.stop(t+1.5)})})}\n" +
         "var chimeBuf=null,chimeKey='',voiceSrc=null,playId=0;\n" +
         "function loadBuf(url){return fetch(url,{cache:'no-store'}).then(function(r){if(!r.ok)throw 0;return r.arrayBuffer()}).then(function(a){return new Promise(function(ok,no){ac.decodeAudioData(a,ok,no)})})}\n" +
-        "function playBuf(buf,done){var src=ac.createBufferSource();src.buffer=buf;src.connect(ac.destination);src.onended=done||null;src.start();return src}\n" +
-        "function chime(){if(!ac||ac.state!=='running')return;var key=(S.chime||'')+'/'+(S.chimeVer||0);if(chimeBuf&&key===chimeKey){playBuf(chimeBuf);return}\n";
+        "function playBuf(buf,done){var src=ac.createBufferSource();src.buffer=buf;src.connect(ac.destination);src.onended=done||null;src.start();return src}\n";
     private static final String P1 =
+        "function chime(){if(!ac||ac.state!=='running')return;var key=(S.chime||'')+'/'+(S.chimeVer||0);if(chimeBuf&&key===chimeKey){playBuf(chimeBuf);return}\n" +
         " loadBuf('/chime?v='+encodeURIComponent(key)).then(function(b){chimeBuf=b;chimeKey=key;playBuf(b)}).catch(synthChime)}\n" +
         "function stopVoice(){playId++;try{if(voiceSrc){voiceSrc.onended=null;voiceSrc.stop()}}catch(e){}voiceSrc=null;if('speechSynthesis' in window)speechSynthesis.cancel()}\n" +
         "function playVoice(url,text,rep){if(rep<=0)return;var id=++playId;\n" +
@@ -307,5 +306,5 @@ final class DisplayPage {
         "})();\n" +
         "</script></body></html>\n";
 
-    static final String HTML = new StringBuilder(23253).append(P0).append(P1).toString();
+    static final String HTML = new StringBuilder(23490).append(P0).append(P1).toString();
 }
