@@ -78,6 +78,9 @@ body.free #secHist{flex:1;margin:0;padding:1.5vh 1vh;border-top:0}
 body.free #secWait{display:flex}
 body.free #secHist,body.free #secWait{border-top:0}
 body.free #dot{z-index:9}
+/* ── 전체화면(자유 배치 모드): 이미지 구역을 화면 전체로, 나머지 구역 숨김 ── */
+body.free.full .left{left:1vh!important;top:1vh!important;width:calc(100% - 2vh)!important;height:calc(100% - 2vh)!important;transition:left .6s ease,top .6s ease,width .6s ease,height .6s ease}
+body.free.full .right{opacity:0;pointer-events:none;transition:opacity .6s ease}
 #logoBox{display:none}
 body.free #logoBox{display:flex;position:absolute;align-items:center;justify-content:center;overflow:hidden;z-index:5;pointer-events:none}
 #logoBox img{width:100%;height:100%;object-fit:contain;display:block}

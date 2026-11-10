@@ -85,6 +85,9 @@ final class DisplayPage {
         "body.free #secWait{display:flex}\n" +
         "body.free #secHist,body.free #secWait{border-top:0}\n" +
         "body.free #dot{z-index:9}\n" +
+        "/* ── 전체화면(자유 배치 모드): 이미지 구역을 화면 전체로, 나머지 구역 숨김 ── */\n" +
+        "body.free.full .left{left:1vh!important;top:1vh!important;width:calc(100% - 2vh)!important;height:calc(100% - 2vh)!important;transition:left .6s ease,top .6s ease,width .6s ease,height .6s ease}\n" +
+        "body.free.full .right{opacity:0;pointer-events:none;transition:opacity .6s ease}\n" +
         "#logoBox{display:none}\n" +
         "body.free #logoBox{display:flex;position:absolute;align-items:center;justify-content:center;overflow:hidden;z-index:5;pointer-events:none}\n" +
         "#logoBox img{width:100%;height:100%;object-fit:contain;display:block}\n" +
@@ -162,10 +165,10 @@ final class DisplayPage {
         "// ── 소리: 호출기 폰이 만든 알림음·음성 파일을 그대로 재생 (TV·PC 모두 같은 소리) ──\n" +
         "function initAudio(){try{ac=ac||new (window.AudioContext||window.webkitAudioContext)();if(ac.state!=='running')ac.resume()}catch(e){}}\n" +
         "function synthChime(){var t0=ac.currentTime+.05;[[659.25,0],[523.25,.6]].forEach(function(n){[[1,.7],[2,.2],[3,.05]].forEach(function(h){var o=ac.createOscillator(),g=ac.createGain(),t=t0+n[1];o.frequency.value=n[0]*h[0];g.gain.setValueAtTime(0,t);g.gain.linearRampToValueAtTime(h[1]*.6,t+.01);g.gain.exponentialRampToValueAtTime(.0001,t+1.4);o.connect(g);g.connect(ac.destination);o.start(t);o.stop(t+1.5)})})}\n" +
-        "var chimeBuf=null,chimeKey='',voiceSrc=null,playId=0;\n" +
-        "function loadBuf(url){return fetch(url,{cache:'no-store'}).then(function(r){if(!r.ok)throw 0;return r.arrayBuffer()}).then(function(a){return new Promise(function(ok,no){ac.decodeAudioData(a,ok,no)})})}\n" +
-        "function playBuf(buf,done){var src=ac.createBufferSource();src.buffer=buf;src.connect(ac.destination);src.onended=done||null;src.start();return src}\n";
+        "var chimeBuf=null,chimeKey='',voiceSrc=null,playId=0;\n";
     private static final String P1 =
+        "function loadBuf(url){return fetch(url,{cache:'no-store'}).then(function(r){if(!r.ok)throw 0;return r.arrayBuffer()}).then(function(a){return new Promise(function(ok,no){ac.decodeAudioData(a,ok,no)})})}\n" +
+        "function playBuf(buf,done){var src=ac.createBufferSource();src.buffer=buf;src.connect(ac.destination);src.onended=done||null;src.start();return src}\n" +
         "function chime(){if(!ac||ac.state!=='running')return;var key=(S.chime||'')+'/'+(S.chimeVer||0);if(chimeBuf&&key===chimeKey){playBuf(chimeBuf);return}\n" +
         " loadBuf('/chime?v='+encodeURIComponent(key)).then(function(b){chimeBuf=b;chimeKey=key;playBuf(b)}).catch(synthChime)}\n" +
         "function stopVoice(){playId++;try{if(voiceSrc){voiceSrc.onended=null;voiceSrc.stop()}}catch(e){}voiceSrc=null;if('speechSynthesis' in window)speechSynthesis.cancel()}\n" +
@@ -303,11 +306,12 @@ final class DisplayPage {
         " $('mMsg').textContent='최소화는 윈도우 실행 파일(DID-Display.bat)로 열었을 때 됩니다'})};\n" +
         "$('mExit').onclick=function(){helper('close').then(function(){setTimeout(function(){$('mMsg').textContent='종료되지 않으면 Alt+F4 를 누르세요'},1500)}).catch(function(){\n" +
         " try{window.top.close()}catch(x){}setTimeout(function(){$('mMsg').textContent='Alt+F4 를 누르면 종료됩니다'},400)})};\n" +
-        "document.addEventListener('keydown',function(e){if(e.key==='Escape'&&$('menu').classList.contains('show'))closeMenu()},true);\n" +
+        "document.addEventListener('keydown',function(e){if(e.key==='Escape'&&$('menu').classList.contains('show'))closeMenu()},true);\n";
+    private static final String P2 =
         "window.screenInfo=screenInfo;\n" +
         "poll();\n" +
         "})();\n" +
         "</script></body></html>\n";
 
-    static final String HTML = new StringBuilder(23720).append(P0).append(P1).toString();
+    static final String HTML = new StringBuilder(24050).append(P0).append(P1).append(P2).toString();
 }
