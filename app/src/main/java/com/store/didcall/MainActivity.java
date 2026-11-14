@@ -32,6 +32,14 @@ public class MainActivity extends Activity {
         SharedPreferences p = getSharedPreferences(PREFS, MODE_PRIVATE);
         String mode = p.getString(KEY_MODE, "");
 
+        // 홈(런처)으로 실행됐을 때: TV 모드면 곧바로 호출 화면을 띄워 홈처럼 동작하고,
+        // 그 외 모드면 아무것도 하지 않고 종료해 원래 홈 화면이 보이게 한다 (홈 버튼 무해화)
+        if (isHomeIntent()) {
+            if (MODE_TV.equals(mode)) { open(DisplayActivity.class); return; }
+            finish();
+            return;
+        }
+
         // 이미 역할이 정해졌으면 바로 해당 화면으로
         if (!getIntent().getBooleanExtra(EXTRA_CHOOSE, false)) {
             if (MODE_TV.equals(mode)) { open(DisplayActivity.class); return; }
@@ -80,6 +88,11 @@ public class MainActivity extends Activity {
         LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(w, Ui.dp(this, 76));
         lp.topMargin = Ui.dp(this, 14);
         return lp;
+    }
+
+    /** 홈(런처) 인텐트로 실행됐는지 — 부팅 직후·홈 버튼 누름 */
+    private boolean isHomeIntent() {
+        return getIntent().hasCategory(android.content.Intent.CATEGORY_HOME);
     }
 
     private void choose(String mode) {
