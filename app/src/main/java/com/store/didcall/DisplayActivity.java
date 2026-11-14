@@ -335,6 +335,8 @@ public class DisplayActivity extends Activity {
 
     @Override
     public boolean onKeyDown(int keyCode, KeyEvent event) {
+        // 설정 메뉴 등 다이얼로그가 떠 있으면 리모컨 키를 가로채지 않음 (방향키 이동·엔터 선택이 다이얼로그에서 작동하게)
+        if (menuDialog != null && menuDialog.isShowing()) return super.onKeyDown(keyCode, event);
         boolean showing = searchPane.getVisibility() != View.VISIBLE;
         if (showing && (keyCode == KeyEvent.KEYCODE_DPAD_CENTER || keyCode == KeyEvent.KEYCODE_ENTER)) {
             if (event.getRepeatCount() == 0) recallFromRemote(); // 리모컨 확인 버튼 = 재호출
@@ -346,6 +348,9 @@ public class DisplayActivity extends Activity {
         }
         return super.onKeyDown(keyCode, event);
     }
+
+    /** 뒤로 버튼 메뉴 등 현재 열린 다이얼로그 — 떠 있으면 리모컨 키를 다이얼로그에 넘김 */
+    private AlertDialog menuDialog;
 
     /** 재호출은 승인된 기기만 가능 → 처음 한 번 호출기에서 [허용] 받기 */
     private void recallFromRemote() {
@@ -422,13 +427,14 @@ public class DisplayActivity extends Activity {
         // 화면 내용을 시계 방향으로 90° 돌리면(90) TV를 왼쪽(반시계)으로 돌려 단 경우에 바로 보임
         String[] items = {"가로 (기본)", "세로 — TV를 왼쪽으로 돌려 단 경우", "세로 — TV를 오른쪽으로 돌려 단 경우"};
         final int[] values = {0, 90, 270};
-        new AlertDialog.Builder(this, R.style.DidDialog)
+        final AlertDialog dlg = new AlertDialog.Builder(this, R.style.DidDialog)
                 .setTitle("화면 방향")
                 .setItems(items, (d, which) -> {
                     web.evaluateJavascript("setRot(" + values[which] + ")", null);
                     ui.postDelayed(this::unlockAudio, 2500);
                 })
                 .show();
+        menuDialog = dlg;
     }
 
     @SuppressWarnings("deprecation")
@@ -449,17 +455,18 @@ public class DisplayActivity extends Activity {
         b.append("\n\n기기: ").append(Build.MANUFACTURER).append(' ').append(Build.MODEL)
                 .append("\n안드로이드: ").append(Build.VERSION.RELEASE)
                 .append("\n호출기: ").append(host.isEmpty() ? "연결 안 됨" : host);
-        new AlertDialog.Builder(this, R.style.DidDialog)
+        final AlertDialog dlg = new AlertDialog.Builder(this, R.style.DidDialog)
                 .setTitle("화면 정보")
                 .setMessage(b.toString())
                 .setPositiveButton("확인", null)
                 .show();
+        menuDialog = dlg;
     }
 
     @Override
     public void onBackPressed() {
         // 실수로 꺼지는 것을 막기 위해 확인 창 표시
-        new AlertDialog.Builder(this, R.style.DidDialog)
+        final AlertDialog dlg = new AlertDialog.Builder(this, R.style.DidDialog)
                 .setTitle("DID 호출 화면")
                 .setItems(new String[]{"계속 표시", "화면 방향 (세로 거치)", "화면 정보", "호출기 다시 찾기", "호출기 주소 직접 입력", "역할 다시 선택", "앱 종료"}, (d, which) -> {
                     if (which == 1) {
@@ -482,6 +489,7 @@ public class DisplayActivity extends Activity {
                     }
                 })
                 .show();
+        menuDialog = dlg;
     }
 
     // ───────────────────────── 튜토리얼용 래퍼 (Tutorial.java 에서 호출) ─────────────────────────
