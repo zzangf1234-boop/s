@@ -228,8 +228,11 @@ public class CallerActivity extends Activity implements VoiceRecorder.Host {
         inputView.setBackground(Ui.panel(this, 0xFF000000, 18));
         inputView.setLetterSpacing(0.1f);
         inputView.setSingleLine(true);
-        if (Build.VERSION.SDK_INT >= 26) { // "123~130" 처럼 길어지면 글자를 줄여 한 줄에
-            inputView.setAutoSizeTextTypeUniformWithConfiguration(20, (int) sp, 2, android.util.TypedValue.COMPLEX_UNIT_SP);
+        if (Build.VERSION.SDK_INT >= 26 && sp > 20) { // "123~130" 처럼 길어지면 글자를 줄여 한 줄에 (max>min 강제 — Android 16 크래시 방어)
+            try {
+                inputView.setAutoSizeTextTypeUniformWithConfiguration(20, (int) sp, 2, android.util.TypedValue.COMPLEX_UNIT_SP);
+            } catch (IllegalArgumentException ignored) {
+            }
         }
         inputView.setOnClickListener(v -> {       // 숫자창 연속 3번 터치 = 근태 등록 QR
             long now = System.currentTimeMillis();

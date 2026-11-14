@@ -72,8 +72,12 @@ final class Ui {
         b.setBackground(sl);
         b.setStateListAnimator(null);
         // 길게 써도 한 줄로 줄어듦 (글씨 잘림 방지)
-        if (Build.VERSION.SDK_INT >= 26) {
-            b.setAutoSizeTextTypeUniformWithConfiguration(10, (int) sp, 2, TypedValue.COMPLEX_UNIT_SP);
+        // max가 min보다 크게 강제됨 — Android 16 TV에서 max(0)≤min(20) 예외로 크래시하는 기기가 있어 방어
+        if (Build.VERSION.SDK_INT >= 26 && sp > 10) {
+            try {
+                b.setAutoSizeTextTypeUniformWithConfiguration(10, (int) sp, 2, TypedValue.COMPLEX_UNIT_SP);
+            } catch (IllegalArgumentException ignored) {
+            }
         }
         return b;
     }

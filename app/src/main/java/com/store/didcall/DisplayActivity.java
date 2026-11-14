@@ -110,20 +110,22 @@ public class DisplayActivity extends Activity {
     protected void onResume() {
         super.onResume();
         hideSystemUi();
-        web.onResume();
+        // 일부 TV 스틱(Android 16, DR820 펌웨어)은 buildUi 전에 onResume이 올 수 있어
+        // web이 아직 null이면 건너뜀 (크래시 수정: WebView.onResume on null)
+        if (web != null) web.onResume();
     }
 
     @Override
     protected void onPause() {
         super.onPause();
-        web.onPause();
+        if (web != null) web.onPause();
     }
 
     @Override
     protected void onDestroy() {
         ui.removeCallbacksAndMessages(null);
         bg.shutdownNow();
-        web.destroy();
+        if (web != null) web.destroy();
         super.onDestroy();
     }
 
