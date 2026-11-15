@@ -456,13 +456,39 @@ public class DisplayActivity extends Activity {
         focusDialogList(dlg);
     }
 
-    /** TV 리모컨: 다이얼로그 목록에 바로 포커스를 줘야 방향키 이동·엔터 선택이 바로 된다 */
+    /** TV 리모컨: 다이얼로그 목록에 바로 포커스를 주고, 포커스된 항목에 주황 음영을 입혀 선택 위치를 보여 준다 */
     private void focusDialogList(AlertDialog dlg) {
         try {
-            dlg.getListView().post(() -> {
-                dlg.getListView().setFocusable(true);
-                dlg.getListView().requestFocus();
-                if (dlg.getListView().getChildCount() > 0) dlg.getListView().getChildAt(0).requestFocus();
+            android.widget.ListView lv = dlg.getListView();
+            lv.setOnItemSelectedListener(new android.widget.AdapterView.OnItemSelectedListener() {
+                @Override public void onItemSelected(android.widget.AdapterView<?> parent, View v, int pos, long id) {
+                    paintFocus(parent, pos);
+                }
+                @Override public void onNothingSelected(android.widget.AdapterView<?> parent) {
+                    paintFocus(parent, -1);
+                }
+                /** 가리키는 항목(pos)에만 주황 음영 */
+                private void paintFocus(android.widget.AdapterView<?> parent, int pos) {
+                    for (int i = 0; i < parent.getChildCount(); i++) {
+                        parent.getChildAt(i).setBackgroundColor(pos == i ? 0x33FF8A00 : 0x00000000);
+                    }
+                }
+            });
+            lv.setOnHierarchyChangeListener(new android.view.ViewGroup.OnHierarchyChangeListener() {
+                @Override public void onChildViewAdded(View parent, View child) {
+                    // 목록 스크롤로 뷰가 새로 붙을 때도 현재 선택 위치에 음영 유지
+                    child.post(() -> {
+                        int sel = lv.getSelectedItemPosition();
+                        int idx = ((android.view.ViewGroup) parent).indexOfChild(child);
+                        child.setBackgroundColor(idx == sel ? 0x33FF8A00 : 0x00000000);
+                    });
+                }
+                @Override public void onChildViewRemoved(View parent, View child) {}
+            });
+            lv.post(() -> {
+                lv.setFocusable(true);
+                lv.requestFocus();
+                if (lv.getChildCount() > 0) lv.getChildAt(0).requestFocus();
             });
         } catch (Exception ignored) {
         }
