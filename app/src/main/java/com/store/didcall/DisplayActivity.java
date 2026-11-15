@@ -4,7 +4,6 @@ import android.annotation.SuppressLint;
 import android.app.Activity;
 import android.app.AlertDialog;
 import android.content.Intent;
-import android.content.IntentFilter;
 import android.content.SharedPreferences;
 import android.provider.Settings;
 import android.net.Uri;
@@ -101,8 +100,6 @@ public class DisplayActivity extends Activity {
         buildUi();
         host = prefs.getString(K_HOST, "");
         startSearch();
-        // HDMI 해제 신호 수신 등록 — HdmiReceiver가 보내면 액티비티를 닫음
-        registerReceiver(finishReceiver, new IntentFilter("com.store.didcall.FINISH_DISPLAY"));
         // 첫 실행 튜토리얼 (역할을 처음 골랐을 때만)
         if (getIntent().getBooleanExtra(MainActivity.EXTRA_TUTORIAL, false)) {
             Tutorial.showTv(this,
@@ -137,7 +134,6 @@ public class DisplayActivity extends Activity {
 
     @Override
     protected void onDestroy() {
-        try { unregisterReceiver(finishReceiver); } catch (Exception ignored) {}
         ui.removeCallbacksAndMessages(null);
         bg.shutdownNow();
         if (web != null) web.destroy();
@@ -209,11 +205,6 @@ public class DisplayActivity extends Activity {
         t.setTextSize(TypedValue.COMPLEX_UNIT_PX, screenH * ratio);
         return t;
     }
-
-    /** HDMI 해제 시 HdmiReceiver가 보내는 신호 — 화면이 없으니 액티비티를 닫는다 */
-    private final android.content.BroadcastReceiver finishReceiver = new android.content.BroadcastReceiver() {
-        @Override public void onReceive(android.content.Context c, Intent i) { finish(); }
-    };
 
     private void hideSystemUi() {
         getWindow().getDecorView().setSystemUiVisibility(

@@ -77,17 +77,6 @@
             </intent-filter>
         </receiver>
 
-        <!-- HDMI 상태 감지: TV 화면 모드 기기에서 HDMI(디스플레이) 연결/해제에 따라 호출 화면을 띄우거나 종료 -->
-        <receiver
-            android:name=".HdmiReceiver"
-            android:exported="true">
-            <intent-filter>
-                <action android:name="android.intent.action.ACTION_HDMI_PLUGGED" />
-                <action android:name="android.hardware.display.action.DISPLAY_CONNECTED" />
-                <action android:name="android.hardware.display.action.DISPLAY_DISCONNECTED" />
-            </intent-filter>
-        </receiver>
-
         <!-- TV 기기 자동 업데이트: 호출기 서버에서 받은 APK 를 설치 앱에 넘겨 주기 위한 최소 FileProvider -->
         <provider
             android:name=".ApkProvider"
