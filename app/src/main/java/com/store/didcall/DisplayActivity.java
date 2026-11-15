@@ -62,6 +62,8 @@ public class DisplayActivity extends Activity {
 
     private String host = "";
     private boolean searching;
+    /** 호출기 화면(/display)을 한 번이라도 성공적으로 로드했는지 — 홈 복귀 시 복구 판단용 */
+    private boolean webLoaded;
     private int fails;
     private int screenH;
 
@@ -112,12 +114,21 @@ public class DisplayActivity extends Activity {
         hideSystemUi();
         // 일부 TV 스틱(Android 16, DR820 펌웨어)은 buildUi 전에 onResume이 올 수 있어
         // web이 아직 null이면 건너뜀 (크래시 수정: WebView.onResume on null)
-        if (web != null) web.onResume();
+        if (web == null) return;
+        web.onResume();
+        // 홈 갔다가 돌아오면 onCreate가 아니라 onResume만 호출되므로,
+        // 화면이 멈춰 있으면(호출기 찾기 중도 실패·WebView 숨김 상태) 즉시 복구
+        if (!webLoaded) { startSearch(); }       // 한 번도 로드 못 했으면 다시 찾기
+        else if (web.getVisibility() != View.VISIBLE) web.setVisibility(View.VISIBLE);
+        else web.reload(); // 멈춰 있을 수 있는 WebView 갱신
     }
 
     @Override
     protected void onPause() {
         super.onPause();
+        // 다른 앱(넷플릭스 등)을 볼 때는 감시·재검색을 멈춤 — 뒷화면 깜빡임 방지
+        ui.removeCallbacks(watchdog);
+        ui.removeCallbacks(retrySearch);
         if (web != null) web.onPause();
     }
 
@@ -228,9 +239,15 @@ public class DisplayActivity extends Activity {
                 } else {
                     searchTitle.setText("호출기를 찾지 못했습니다");
                     searchTitle.setTextColor(0xFFFF5A5A);
-                    searchMsg.setText("이 기기 주소: " + Net.localIp() + "   ·   20초 후 다시 찾습니다");
+                    if (Net.localIp().equals("0.0.0.0")) {
+                        // 부팅 직후 와이파이가 아직 안 잡혔을 수 있음 — 5초 후 빠르게 재시도
+                        searchMsg.setText("와이파이 연결을 기다리는 중… (5초 후 다시 시도)");
+                        ui.postDelayed(retrySearch, 5_000);
+                    } else {
+                        searchMsg.setText("이 기기 주소: " + Net.localIp() + "   ·   20초 후 다시 찾습니다");
+                        ui.postDelayed(retrySearch, 20_000);
+                    }
                     retryBtn.requestFocus();
-                    ui.postDelayed(retrySearch, 20_000);
                 }
             });
         });
@@ -245,6 +262,7 @@ public class DisplayActivity extends Activity {
         searchPane.setVisibility(View.GONE);
         web.setVisibility(View.VISIBLE);
         web.loadUrl("http://" + h + "/display?app=1");
+        webLoaded = true;
         ui.postDelayed(this::unlockAudio, 2500);
         ui.postDelayed(watchdog, 10_000);
         checkSlaveUpdate();
@@ -468,7 +486,7 @@ public class DisplayActivity extends Activity {
         // 실수로 꺼지는 것을 막기 위해 확인 창 표시
         final AlertDialog dlg = new AlertDialog.Builder(this, R.style.DidDialog)
                 .setTitle("DID 호출 화면")
-                .setItems(new String[]{"계속 표시", "화면 방향 (세로 거치)", "화면 정보", "호출기 다시 찾기", "호출기 주소 직접 입력", "역할 다시 선택", "앱 종료"}, (d, which) -> {
+                .setItems(new String[]{"계속 표시", "화면 방향 (세로 거치)", "화면 정보", "호출기 다시 찾기", "호출기 주소 직접 입력", "원래 홈 화면 열기", "역할 다시 선택", "앱 종료"}, (d, which) -> {
                     if (which == 1) {
                         chooseRotation();
                     } else if (which == 2) {
@@ -480,16 +498,30 @@ public class DisplayActivity extends Activity {
                         searchPane.setVisibility(View.VISIBLE);
                         showManualDialog();
                     } else if (which == 5) {
+                        openOriginalLauncher();
+                    } else if (which == 6) {
                         prefs.edit().remove(MainActivity.KEY_MODE).apply();
                         prefs.edit().remove(MainActivity.KEY_TUTORIAL_DONE).apply();
                         startActivity(new Intent(this, MainActivity.class).putExtra(MainActivity.EXTRA_CHOOSE, true));
                         finish();
-                    } else if (which == 6) {
+                    } else if (which == 7) {
                         finish();
                     }
                 })
                 .show();
         menuDialog = dlg;
+    }
+
+    /** 설정 메뉴 "원래 홈 화면 열기" — 기존 Google TV 런처를 명시적으로 띄움 (홈 역할은 그대로 유지) */
+    private void openOriginalLauncher() {
+        try {
+            Intent i = new Intent(Intent.ACTION_MAIN);
+            i.addCategory(Intent.CATEGORY_HOME);
+            i.setPackage("com.google.android.tvlauncher");
+            startActivity(i);
+        } catch (Exception e) {
+            Toast.makeText(this, "원래 홈 화면을 열 수 없습니다", Toast.LENGTH_SHORT).show();
+        }
     }
 
     // ───────────────────────── 튜토리얼용 래퍼 (Tutorial.java 에서 호출) ─────────────────────────
