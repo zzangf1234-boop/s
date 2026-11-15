@@ -34,10 +34,12 @@ public class MainActivity extends Activity {
 
         // 홈(런처)으로 실행됐을 때: TV 모드면 곧바로 호출 화면을 띄워 홈처럼 동작하고,
         // 그 외 모드면 아무것도 하지 않고 종료해 원래 홈 화면이 보이게 한다 (홈 버튼 무해화)
+        boolean tvLike = getIntent().hasCategory("android.intent.category.LEANBACK_HOME")
+                || getPackageManager().hasSystemFeature("android.software.leanback");
         if (isHomeIntent()) {
             if (MODE_TV.equals(mode)) { open(DisplayActivity.class); return; }
-            finish();
-            return;
+            if (!tvLike) { finish(); return; }
+            // TV 환경(스틱·TV박스)에서는 역할 선택 화면을 그대로 보여준다
         }
 
         // 이미 역할이 정해졌으면 바로 해당 화면으로
