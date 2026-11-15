@@ -453,10 +453,24 @@ public class DisplayActivity extends Activity {
                 })
                 .show();
         menuDialog = dlg;
+        focusDialogList(dlg);
+    }
+
+    /** TV 리모컨: 다이얼로그 목록에 바로 포커스를 줘야 방향키 이동·엔터 선택이 바로 된다 */
+    private void focusDialogList(AlertDialog dlg) {
+        try {
+            dlg.getListView().post(() -> {
+                dlg.getListView().setFocusable(true);
+                dlg.getListView().requestFocus();
+                if (dlg.getListView().getChildCount() > 0) dlg.getListView().getChildAt(0).requestFocus();
+            });
+        } catch (Exception ignored) {
+        }
     }
 
     @SuppressWarnings("deprecation")
-    private void showScreenInfo() {        android.util.DisplayMetrics dm = new android.util.DisplayMetrics();
+    private void showScreenInfo() {
+        android.util.DisplayMetrics dm = new android.util.DisplayMetrics();
         getWindowManager().getDefaultDisplay().getRealMetrics(dm);
         StringBuilder b = new StringBuilder();
         b.append("앱이 그리는 해상도: ").append(dm.widthPixels).append(" × ").append(dm.heightPixels)
@@ -479,6 +493,7 @@ public class DisplayActivity extends Activity {
                 .setPositiveButton("확인", null)
                 .show();
         menuDialog = dlg;
+        focusDialogList(dlg);
     }
 
     @Override
@@ -510,6 +525,7 @@ public class DisplayActivity extends Activity {
                 })
                 .show();
         menuDialog = dlg;
+        focusDialogList(dlg);
     }
 
     /** 설정 메뉴 "원래 홈 화면 열기" — 기존 Google TV 런처를 명시적으로 띄움 (홈 역할은 그대로 유지) */

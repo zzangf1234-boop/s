@@ -12,6 +12,14 @@
         <item name="android:buttonBarPositiveButtonStyle">@style/DidDialogButtonAccent</item>
         <item name="android:buttonBarNegativeButtonStyle">@style/DidDialogButton</item>
         <item name="android:buttonBarNeutralButtonStyle">@style/DidDialogButton</item>
+        <!-- 목록 항목 선택 음영: 리모컨 방향키로 이동할 때 어디가 선택됐는지 보이게 -->
+        <item name="android:listChoiceIndicatorSingle">@null</item>
+        <item name="android:activatedBackgroundIndicator">@style/DidDialogActivated</item>
+    </style>
+
+    <!-- 선택된 목록 항목 배경 (주황 음영) -->
+    <style name="DidDialogActivated">
+        <item name="android:background">@drawable/did_menu_selector</item>
     </style>
 
     <style name="DidDialogButton" parent="android:Widget.Material.Button.Borderless.Colored">

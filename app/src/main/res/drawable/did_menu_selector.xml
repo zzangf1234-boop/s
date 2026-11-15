@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 다이얼로그 목록 항목: 포커스(리모컨 이동)·선택 시 주황 음영으로 어디를 가리키는지 보이게 -->
+<selector xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:state_pressed="true">
+        <shape>
+            <solid android:color="#33FF8A00" />
+        </shape>
+    </item>
+    <item android:state_focused="true">
+        <shape>
+            <solid android:color="#33FF8A00" />
+        </shape>
+    </item>
+    <item android:state_activated="true">
+        <shape>
+            <solid android:color="#33FF8A00" />
+        </shape>
+    </item>
+    <item>
+        <shape>
+            <solid android:color="#00000000" />
+        </shape>
+    </item>
+</selector>
